@@ -8,6 +8,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Base UI
+
+- Read `docs/base-ui.md` before implementing or modifying Base UI components.
+- Treat that project-local reference and its linked official documentation as authoritative over prior knowledge.
+- Use only the current `@base-ui/react` package name and documented subpath imports.
+
 ## Commit conventions
 
 - All commit messages must follow the Conventional Commits format enforced by commitlint: `<type>(<optional-scope>): <description>`.
