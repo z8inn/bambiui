@@ -1,6 +1,12 @@
 "use client";
 
-import { useId, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useId,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   Badge,
   Button,
@@ -9,7 +15,10 @@ import {
   Input,
   Switch,
 } from "./components";
+import { Tabs } from "@base-ui/react/tabs";
+import { highlight } from "sugar-high";
 import { Icon } from "./icons";
+import { snippets } from "./snippets";
 import {
   componentIds,
   toCSSVariables,
@@ -132,6 +141,11 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
                 readOnly
               />
               <Input label="Unavailable" size="lg" disabled defaultValue="—" />
+              <div className={styles.sizeGroup}>
+                <Input label="Small" size="sm" placeholder="size=&quot;sm&quot;" />
+                <Input label="Medium" size="md" placeholder="size=&quot;md&quot;" />
+                <Input label="Large" size="lg" placeholder="size=&quot;lg&quot;" />
+              </div>
             </>
           )}
         </div>
@@ -363,6 +377,110 @@ function WorkspaceSettings() {
   );
 }
 
+function CodeBlock({ name, code }: { name: string; code: string }) {
+  const [copyStatus, setCopyStatus] = useState("");
+  // sugar-high escapes the source and only emits token <span>s.
+  const html = useMemo(() => highlight(code), [code]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopyStatus("Copied");
+    } catch {
+      setCopyStatus("Copy failed");
+    }
+  }
+
+  return (
+    <div className={styles.codeBlock}>
+      <div className={styles.codeActions}>
+        {/* The button label shows the result; announce it for screen readers too. */}
+        <span role="status" className={styles.srOnly}>
+          {copyStatus}
+        </span>
+        <button
+          type="button"
+          className={styles.copyButton}
+          aria-label={`Copy ${name} code`}
+          onClick={copy}
+          onBlur={() => setCopyStatus("")}
+        >
+          <Icon name={copyStatus === "Copied" ? "check" : "copy"} size={13} />
+          {copyStatus === "Copied" ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {/* The scroll container is the tab stop so arrow keys scroll the code. */}
+      <pre className={styles.code} tabIndex={0} aria-label={`${name} React code`}>
+        <code dangerouslySetInnerHTML={{ __html: html }} />
+      </pre>
+    </div>
+  );
+}
+
+function Showcase({
+  id,
+  expanded,
+  badge,
+}: {
+  id: ComponentId;
+  expanded: boolean;
+  badge: string;
+}) {
+  const { name, description } = componentMeta[id];
+
+  if (!expanded)
+    return (
+      <section className={styles.showcase} aria-label={`${name} preview`}>
+        <header className={styles.showcaseHeader}>
+          <h3>{name}</h3>
+          <span className={styles.showcaseBadge}>{badge}</span>
+        </header>
+        <div className={styles.specimen}>
+          <Specimen id={id} expanded={false} />
+        </div>
+        <p className={styles.showcaseCaption}>{description}</p>
+      </section>
+    );
+
+  return (
+    <section className={styles.showcase} aria-label={`${name} preview`}>
+      <Tabs.Root defaultValue="preview">
+        <header className={styles.showcaseHeader}>
+          <h3>{name}</h3>
+          <Tabs.List
+            className={styles.showcaseTabs}
+            aria-label={`${name} example view`}
+          >
+            <Tabs.Tab value="preview" className={styles.showcaseTab}>
+              <Icon name="grid" size={13} />
+              Preview
+            </Tabs.Tab>
+            <Tabs.Tab value="code" className={styles.showcaseTab}>
+              <Icon name="code" size={13} />
+              React
+            </Tabs.Tab>
+            <Tabs.Indicator className={styles.showcaseTabIndicator} />
+          </Tabs.List>
+        </header>
+        {/* Keep the preview mounted so demo state survives a look at the code. */}
+        <Tabs.Panel
+          value="preview"
+          keepMounted
+          className={`${styles.specimen} ${styles.expanded}`}
+        >
+          <Specimen id={id} expanded />
+        </Tabs.Panel>
+        <Tabs.Panel value="code" className={styles.codePanel} tabIndex={-1}>
+          <CodeBlock name={name} code={snippets[id]} />
+        </Tabs.Panel>
+      </Tabs.Root>
+      <p className={styles.showcaseCaption}>
+        Live states · Try the controls to see how they feel.
+      </p>
+    </section>
+  );
+}
+
 export function Preview({
   selected,
   system,
@@ -401,30 +519,16 @@ export function Preview({
         <div className={overview ? styles.grid : styles.isolated}>
           {(overview ? componentIds : [selected as ComponentId]).map(
             (id, index) => (
-              <section
-                className={styles.showcase}
+              <Showcase
                 key={id}
-                aria-label={`${componentMeta[id].name} preview`}
-              >
-                <header className={styles.showcaseHeader}>
-                  <h3>{componentMeta[id].name}</h3>
-                  <span>
-                    {overview
-                      ? String(index + 1).padStart(2, "0")
-                      : "COMPONENT SPOTLIGHT"}
-                  </span>
-                </header>
-                <div
-                  className={`${styles.specimen} ${!overview ? styles.expanded : ""}`}
-                >
-                  <Specimen id={id} expanded={!overview} />
-                </div>
-                <p className={styles.showcaseCaption}>
-                  {overview
-                    ? componentMeta[id].description
-                    : "Live states · Try the controls to see how they feel."}
-                </p>
-              </section>
+                id={id}
+                expanded={!overview}
+                badge={
+                  overview
+                    ? String(index + 1).padStart(2, "0")
+                    : "COMPONENT SPOTLIGHT"
+                }
+              />
             ),
           )}
         </div>

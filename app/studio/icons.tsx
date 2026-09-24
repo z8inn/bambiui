@@ -25,6 +25,7 @@ const paths = {
   link: "m9 15 6-6M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 1 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0",
   spark: "m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7z",
   close: "m6 6 12 12M6 18 18 6",
+  copy: "M9 9h11v11H9z M5 15H4V4h11v1",
 } as const;
 
 export type IconName = keyof typeof paths;
