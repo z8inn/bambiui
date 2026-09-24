@@ -1,5 +1,5 @@
 /*
- * Bambi UI components.
+ * bambiui components.
  *
  * Visual values come from the design-system variables that `toCSSVariables()`
  * sets on the theme root: component tokens (`--{component}-{token}`) and global

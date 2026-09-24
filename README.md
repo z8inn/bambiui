@@ -1,4 +1,4 @@
-# Bambi UI
+# bambiui
 
 A local-first design system playground built with Next.js, Tailwind CSS v4, and Base UI.
 
@@ -17,6 +17,12 @@ A local-first design system playground built with Next.js, Tailwind CSS v4, and 
 - Import a JSON backup to restore a system. Imports are validated before replacing your draft. Version 1 backups and saved drafts are upgraded to version 2 automatically: their values are kept and the new tokens get their defaults.
 
 Select a component in the sidebar to edit its tokens, or use **Global tokens** to change the shared foundations. Changes apply immediately. Color inputs accept six-digit hex values; numeric controls use pixels.
+
+## Icons and social images
+
+The logo artwork lives in `app/studio/brand.ts`. The Apple touch icon, the web manifest icons, and the Open Graph and Twitter images are generated from it at build time. `app/icon.svg` (the output of `brandSvg()`) and `app/favicon.ico` (a 16/32/48 px render) are static files; regenerate them when the artwork changes.
+
+Social images need an absolute URL. Set `NEXT_PUBLIC_SITE_URL` to the production domain, for example `https://bambiui.com`. Cloudflare Pages builds fall back to the deployment URL (`CF_PAGES_URL`).
 
 ## Token tests
 

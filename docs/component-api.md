@@ -1,6 +1,6 @@
 # Component API contract
 
-Every Bambi UI component in `app/studio/components/` follows this contract. New components must implement the full prop set for their category below. A developer should be able to guess a component's API without reading its source:
+Every bambiui component in `app/studio/components/` follows this contract. New components must implement the full prop set for their category below. A developer should be able to guess a component's API without reading its source:
 
 ```tsx
 <Component variant="…" size="md" disabled />

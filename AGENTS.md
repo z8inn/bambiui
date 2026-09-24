@@ -8,6 +8,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Naming
+
+- The product name is always written `bambiui`: one word, all lowercase, in UI copy, metadata, docs, comments and commit messages. Never write `Bambi UI`, `BambiUI` or `Bambi`.
+- In code identifiers, follow the language's conventions (`BrandMark`, `bambiui.design-system.v1`).
+
 ## Base UI
 
 - Read `docs/base-ui.md` before implementing or modifying Base UI components.

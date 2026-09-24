@@ -1,3 +1,5 @@
+import { brand } from "./brand";
+
 const paths = {
   grid: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   sliders: "M4 7h7m4 0h5M4 17h3m4 0h9M11 4v6M7 14v6",
@@ -29,6 +31,45 @@ const paths = {
 } as const;
 
 export type IconName = keyof typeof paths;
+
+/**
+ * bambiui logo mark, drawn in `currentColor`. Both variants share the outline;
+ * `filled` also fills the upper head (head minus face) and the eye.
+ */
+export function BrandMark({
+  size = 22,
+  variant = "filled",
+}: {
+  size?: number | string;
+  variant?: "filled" | "outline";
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="-24 -24 624 608"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="0.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {variant === "filled" && (
+        <path
+          d={`${brand.head} ${brand.face} ${brand.eye}`}
+          fill="currentColor"
+          fillRule="evenodd"
+          stroke="none"
+        />
+      )}
+      {[brand.head, brand.faceCurve, brand.eye].map((d) => (
+        // Keep the stroke at 0.8px regardless of the 576-unit artwork scale.
+        <path key={d} d={d} vectorEffect="non-scaling-stroke" />
+      ))}
+    </svg>
+  );
+}
 
 /** Decorative icon. `size` accepts pixels or any CSS length, e.g. "1.15em". */
 export function Icon({

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Dialog } from "@base-ui/react/dialog";
 import { Tabs } from "@base-ui/react/tabs";
 import { Button, NavItem, SegmentedControl } from "./controls";
-import { Icon } from "./icons";
+import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
 import {
   componentIds,
@@ -274,9 +274,9 @@ export default function Studio() {
         Skip to preview
       </a>
       <header className="studio-header">
-        <Link href="/" className="brand" aria-label="Bambi UI home">
+        <Link href="/" className="brand" aria-label="bambiui home">
           <span className="brand-mark">
-            <Icon name="spark" size={22} />
+            <BrandMark size={24} />
           </span>
           bambi<span className="brand-ui">ui</span>
           <span className="beta-tag">BETA</span>
