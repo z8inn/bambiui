@@ -7,3 +7,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Commit conventions
+
+- All commit messages must follow the Conventional Commits format enforced by commitlint: `<type>(<optional-scope>): <description>`.
+- Use an appropriate lowercase type such as `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `style`, `perf`, `build`, `ci`, or `revert`.
+- Keep the description concise, imperative, and lowercase, without a trailing period.
+- Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
+- Examples: `feat: add button component`, `fix(theme): correct dark mode colors`, `chore: update dependencies`.
