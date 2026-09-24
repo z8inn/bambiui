@@ -1,0 +1,524 @@
+/*
+ * Bambi UI components.
+ *
+ * Visual values come from the design-system variables that `toCSSVariables()`
+ * sets on the theme root: component tokens (`--{component}-{token}`) and global
+ * roles (`--ds-*`). Interaction values (`--ds-state-*`, focus ring, size scale
+ * factors) are defined on the same root, so every component hovers, presses,
+ * focuses, disables and sizes the same way.
+ *
+ * Conventions: `data-variant`, `data-tone` and `data-size` carry the public API;
+ * Base UI state attributes (`data-disabled`, `data-invalid`, `data-checked`, …)
+ * carry interaction state. State is never encoded as a variant.
+ */
+
+/* Size scale ---------------------------------------------------------------- */
+
+:is(.button, .field, .badge, .card)[data-size="sm"] {
+  --size-scale: var(--ds-size-scale-sm);
+  --size-height: var(--ds-control-height-sm);
+}
+
+:is(.button, .field, .badge, .card)[data-size="md"] {
+  --size-scale: 1;
+  --size-height: var(--ds-control-height-md);
+}
+
+:is(.button, .field, .badge, .card)[data-size="lg"] {
+  --size-scale: var(--ds-size-scale-lg);
+  --size-height: var(--ds-control-height-lg);
+}
+
+/* Shared control behavior --------------------------------------------------- */
+
+.button:focus-visible,
+.inputControl:has(:focus-visible),
+.switch:focus-visible,
+.checkbox:focus-visible {
+  outline: var(--ds-focus-ring-width) solid var(--ds-primary);
+  outline-offset: var(--ds-focus-ring-offset);
+}
+
+.button[data-disabled]:not([data-loading]),
+.field[data-disabled] {
+  opacity: var(--ds-state-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.field[data-disabled] :is(.choice, .input) {
+  cursor: not-allowed;
+}
+
+.spinner {
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Button -------------------------------------------------------------------- */
+
+.button {
+  --button-fill: var(--button-background);
+  --button-ink: var(--button-foreground);
+  --button-stroke: var(--button-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: var(--size-height);
+  padding: calc(var(--button-padding-y) * var(--size-scale))
+    calc(var(--button-padding-x) * var(--size-scale));
+  margin: var(--button-margin);
+  gap: var(--button-gap);
+  border: var(--button-border-width) solid var(--button-stroke);
+  border-radius: var(--button-radius);
+  background: var(--button-fill);
+  color: var(--button-ink);
+  font-family: inherit;
+  font-size: calc(var(--button-font-size) * var(--size-scale));
+  font-weight: 500;
+  line-height: 1.35;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-transition-duration) ease,
+    filter var(--ds-transition-duration) ease,
+    transform var(--ds-transition-duration) ease;
+}
+
+.button > svg {
+  width: var(--ds-icon-size);
+  height: var(--ds-icon-size);
+  flex: 0 0 auto;
+}
+
+.button[data-variant="secondary"] {
+  --button-fill: var(--ds-secondary);
+  --button-ink: var(--ds-on-secondary);
+  --button-stroke: var(--ds-secondary);
+}
+
+.button[data-variant="outline"] {
+  --button-fill: transparent;
+  --button-ink: var(--ds-foreground);
+  --button-stroke: var(--ds-border);
+}
+
+.button[data-variant="ghost"] {
+  --button-fill: transparent;
+  --button-ink: var(--ds-foreground);
+  --button-stroke: transparent;
+}
+
+.button[data-variant="destructive"] {
+  --button-fill: var(--ds-danger);
+  --button-ink: var(--ds-on-danger);
+  --button-stroke: var(--ds-danger);
+}
+
+.button[data-variant="link"] {
+  --button-fill: transparent;
+  --button-ink: var(--ds-primary);
+  --button-stroke: transparent;
+  min-height: 0;
+  padding-inline: 0;
+  text-underline-offset: 0.2em;
+}
+
+.button[data-icon-only] {
+  width: var(--size-height);
+  padding: 0;
+}
+
+.button[data-full-width] {
+  width: 100%;
+}
+
+.button[data-loading] {
+  cursor: progress;
+}
+
+.button:active:not([data-disabled]) {
+  transform: translateY(var(--ds-state-pressed-offset));
+}
+
+@media (hover: hover) {
+  .button:is(
+      [data-variant="primary"],
+      [data-variant="secondary"],
+      [data-variant="destructive"]
+    ):hover:not([data-disabled]) {
+    filter: brightness(var(--ds-state-hover-brightness));
+  }
+
+  .button:is([data-variant="outline"], [data-variant="ghost"]):hover:not(
+      [data-disabled]
+    ) {
+    --button-fill: var(--ds-muted);
+  }
+
+  .button[data-variant="link"]:hover:not([data-disabled]) {
+    text-decoration: underline;
+  }
+}
+
+/* Field (Input, Switch, Checkbox) ------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.field[data-kind="text"] {
+  gap: var(--input-gap);
+  margin: var(--input-margin);
+  font-size: calc(var(--input-font-size) * var(--size-scale));
+}
+
+.label {
+  font-weight: 500;
+}
+
+.description,
+.error {
+  margin: 0;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+
+.description {
+  color: var(--ds-muted-foreground);
+}
+
+.error {
+  color: var(--ds-danger);
+}
+
+/* Input */
+
+.inputControl {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--size-height);
+  padding-inline: calc(var(--input-padding-x) * var(--size-scale));
+  gap: calc(var(--input-gap) * var(--size-scale));
+  border: var(--input-border-width) solid var(--input-border);
+  border-radius: var(--input-radius);
+  background: var(--input-background);
+  color: var(--input-foreground);
+  transition: border-color var(--ds-transition-duration) ease;
+}
+
+.inputControl:has(.input[readonly]:not(:disabled)) {
+  background: var(--ds-muted);
+}
+
+.field[data-invalid] .inputControl {
+  border-color: var(--ds-danger);
+}
+
+.input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding-block: calc(var(--input-padding-y) * var(--size-scale));
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--ds-muted-foreground);
+}
+
+.input[readonly] {
+  cursor: default;
+}
+
+.adornment {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--ds-muted-foreground);
+}
+
+.adornment > svg {
+  width: var(--ds-icon-size);
+  height: var(--ds-icon-size);
+}
+
+/* Switch and Checkbox share the labelled-choice anatomy */
+
+.choice {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: var(--size-height);
+  cursor: pointer;
+}
+
+.choice[data-label-position="start"] {
+  flex-direction: row-reverse;
+}
+
+.field[data-kind="choice"]:has(.switch) {
+  gap: calc(var(--switch-gap) / 2);
+  padding: var(--switch-padding-y) var(--switch-padding-x);
+  margin: var(--switch-margin);
+  font-size: calc(var(--switch-font-size) * var(--size-scale));
+}
+
+.field[data-kind="choice"]:has(.switch) .choice {
+  gap: var(--switch-gap);
+}
+
+.field[data-kind="choice"]:has(.checkbox) {
+  gap: calc(var(--checkbox-gap) / 2);
+  padding: var(--checkbox-padding-y) var(--checkbox-padding-x);
+  margin: var(--checkbox-margin);
+  font-size: calc(var(--checkbox-font-size) * var(--size-scale));
+}
+
+.field[data-kind="choice"]:has(.checkbox) .choice {
+  gap: var(--checkbox-gap);
+}
+
+.switch {
+  /* Scales with the size scale (16px at md/14px); travel is one thumb-width. */
+  --thumb-size: calc(1em + 2px);
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: calc(var(--thumb-size) * 2 + 4px + var(--switch-border-width) * 2);
+  height: calc(var(--thumb-size) + 4px + var(--switch-border-width) * 2);
+  padding: 2px;
+  border: var(--switch-border-width) solid var(--switch-border);
+  border-radius: var(--switch-radius);
+  background: var(--switch-background);
+  color: var(--switch-foreground);
+  transition:
+    filter var(--ds-transition-duration) ease,
+    opacity var(--ds-transition-duration) ease;
+}
+
+.thumb {
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  flex: 0 0 auto;
+  border-radius: inherit;
+  background: currentColor;
+  box-shadow: 0 1px 3px #00000016;
+  transition: transform var(--ds-transition-duration) ease;
+}
+
+.thumb[data-checked] {
+  transform: translateX(100%);
+}
+
+.checkbox {
+  --box-size: calc(1em + 6px + var(--checkbox-border-width) * 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--box-size);
+  height: var(--box-size);
+  border: var(--checkbox-border-width) solid var(--checkbox-border);
+  border-radius: var(--checkbox-radius);
+  background: var(--checkbox-background);
+  color: var(--checkbox-foreground);
+  transition:
+    filter var(--ds-transition-duration) ease,
+    opacity var(--ds-transition-duration) ease;
+}
+
+.field[data-invalid] .checkbox {
+  border-color: var(--ds-danger);
+  filter: none;
+}
+
+.indicator {
+  display: flex;
+}
+
+.indicator > svg {
+  width: var(--ds-icon-size);
+  height: var(--ds-icon-size);
+}
+
+.switch[data-unchecked],
+.checkbox[data-unchecked] {
+  filter: grayscale(1);
+  opacity: var(--ds-state-unchecked-opacity);
+}
+
+/* Badge --------------------------------------------------------------------- */
+
+.badge {
+  /* Neutral tone uses the badge component tokens; other tones use global roles. */
+  --tone: var(--badge-foreground);
+  --on-tone: var(--badge-background);
+  --tone-border: var(--badge-border);
+  --tone-text: var(--badge-foreground);
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: calc(var(--badge-gap) * var(--size-scale));
+  padding: calc(var(--badge-padding-y) * var(--size-scale))
+    calc(var(--badge-padding-x) * var(--size-scale));
+  margin: var(--badge-margin);
+  border: var(--badge-border-width) solid var(--tone-border);
+  border-radius: var(--badge-radius);
+  background: var(--badge-background);
+  color: var(--tone-text);
+  font-size: calc(var(--badge-font-size) * var(--size-scale));
+  line-height: 1.2;
+}
+
+.badge > svg {
+  width: var(--ds-icon-size);
+  height: var(--ds-icon-size);
+  flex: 0 0 auto;
+}
+
+.badge:not([data-tone="neutral"]) {
+  --tone-border: var(--tone);
+  /* Darken the role color toward the foreground so text keeps AA contrast. */
+  --tone-text: color-mix(
+    in srgb,
+    var(--tone) var(--ds-tone-text-mix),
+    var(--ds-foreground)
+  );
+}
+
+.badge[data-tone="primary"] {
+  --tone: var(--ds-primary);
+  --on-tone: var(--ds-on-primary);
+}
+
+.badge[data-tone="success"] {
+  --tone: var(--ds-success);
+  --on-tone: var(--ds-on-success);
+}
+
+.badge[data-tone="warning"] {
+  --tone: var(--ds-warning);
+  --on-tone: var(--ds-on-warning);
+}
+
+.badge[data-tone="danger"] {
+  --tone: var(--ds-danger);
+  --on-tone: var(--ds-on-danger);
+}
+
+.badge[data-tone="info"] {
+  --tone: var(--ds-info);
+  --on-tone: var(--ds-on-info);
+}
+
+.badge[data-variant="solid"] {
+  border-color: var(--tone);
+  background: var(--tone);
+  color: var(--on-tone);
+}
+
+.badge[data-variant="subtle"] {
+  border-color: transparent;
+  background: color-mix(
+    in srgb,
+    var(--tone) var(--ds-tone-surface-mix),
+    var(--badge-background)
+  );
+}
+
+.badgeDot {
+  width: 0.4em;
+  height: 0.4em;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Card ---------------------------------------------------------------------- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: calc(var(--card-gap) * var(--size-scale));
+  padding: calc(var(--card-padding-y) * var(--size-scale))
+    calc(var(--card-padding-x) * var(--size-scale));
+  margin: var(--card-margin);
+  border: var(--card-border-width) solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--card-background);
+  color: var(--card-foreground);
+  font-size: var(--card-font-size);
+  overflow-wrap: anywhere;
+}
+
+.card[data-variant="elevated"] {
+  border-color: transparent;
+  box-shadow: var(--ds-shadow-elevated);
+}
+
+.card[data-variant="filled"] {
+  border-color: transparent;
+  background: var(--ds-muted);
+}
+
+.cardIcon {
+  display: grid;
+  place-items: center;
+  width: 2em;
+  height: 2em;
+  border: 1px solid currentColor;
+  border-radius: inherit;
+  opacity: 0.65;
+}
+
+.cardIcon > svg {
+  width: var(--ds-icon-size);
+  height: var(--ds-icon-size);
+}
+
+.cardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card-gap) / 2);
+}
+
+.cardTitle {
+  font-weight: 550;
+  letter-spacing: -0.02em;
+}
+
+.cardDescription {
+  margin: 0;
+  color: color-mix(
+    in srgb,
+    var(--card-foreground) var(--ds-text-muted-mix),
+    var(--card-background)
+  );
+  line-height: 1.65;
+}
+
+.cardContent {
+  align-self: stretch;
+}
+
+.cardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: stretch;
+  gap: var(--card-gap);
+}

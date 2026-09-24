@@ -10,11 +10,27 @@ export const componentIds = [
 export type ComponentId = (typeof componentIds)[number];
 
 export type TokenValues = {
+  // Base surfaces
   background: string;
   foreground: string;
+  muted: string;
+  mutedForeground: string;
+  border: string;
+  // Brand roles
   primary: string;
   onPrimary: string;
-  border: string;
+  secondary: string;
+  onSecondary: string;
+  // Status roles
+  success: string;
+  onSuccess: string;
+  warning: string;
+  onWarning: string;
+  danger: string;
+  onDanger: string;
+  info: string;
+  onInfo: string;
+  // Shape and spacing
   radius: number;
   paddingX: number;
   paddingY: number;
@@ -22,12 +38,33 @@ export type TokenValues = {
   margin: number;
   fontSize: number;
   borderWidth: number;
+  // Size scale shared by every sizeable control
+  controlHeightSm: number;
+  controlHeightMd: number;
+  controlHeightLg: number;
 };
 
-export type ComponentTokens = Omit<TokenValues, "primary" | "onPrimary">;
+/** Tokens every component can override. All other tokens are system-wide roles. */
+export const componentTokenKeys = [
+  "background",
+  "foreground",
+  "border",
+  "radius",
+  "paddingX",
+  "paddingY",
+  "gap",
+  "margin",
+  "fontSize",
+  "borderWidth",
+] as const satisfies readonly (keyof TokenValues)[];
+
+export type ComponentTokens = Pick<
+  TokenValues,
+  (typeof componentTokenKeys)[number]
+>;
 
 export type DesignSystem = {
-  version: 1;
+  version: 2;
   name: string;
   global: TokenValues;
   components: Record<ComponentId, Partial<ComponentTokens>>;
@@ -36,14 +73,26 @@ export type DesignSystem = {
 export const STORAGE_KEY = "bambiui.design-system.v1";
 
 export const defaultSystem: DesignSystem = {
-  version: 1,
+  version: 2,
   name: "Untitled system",
   global: {
     background: "#ffffff",
     foreground: "#27272a",
+    muted: "#f4f4f5",
+    mutedForeground: "#63636b",
+    border: "#e4e4e7",
     primary: "#e8673c",
     onPrimary: "#ffffff",
-    border: "#e4e4e7",
+    secondary: "#f1ede8",
+    onSecondary: "#27272a",
+    success: "#1a7f45",
+    onSuccess: "#ffffff",
+    warning: "#a15c00",
+    onWarning: "#ffffff",
+    danger: "#d2393f",
+    onDanger: "#ffffff",
+    info: "#2563c9",
+    onInfo: "#ffffff",
     radius: 8,
     paddingX: 16,
     paddingY: 10,
@@ -51,6 +100,9 @@ export const defaultSystem: DesignSystem = {
     margin: 0,
     fontSize: 14,
     borderWidth: 1,
+    controlHeightSm: 32,
+    controlHeightMd: 36,
+    controlHeightLg: 44,
   },
   components: {
     button: {},
@@ -62,18 +114,38 @@ export const defaultSystem: DesignSystem = {
   },
 };
 
-export const tokenFields: {
+export type TokenField = {
   key: keyof TokenValues;
   label: string;
   type: "color" | "number";
   min?: number;
   max?: number;
-}[] = [
-  { key: "background", label: "Background", type: "color" },
-  { key: "foreground", label: "Foreground", type: "color" },
-  { key: "primary", label: "Primary", type: "color" },
-  { key: "onPrimary", label: "On primary", type: "color" },
-  { key: "border", label: "Border", type: "color" },
+};
+
+const color = (key: keyof TokenValues, label: string): TokenField => ({
+  key,
+  label,
+  type: "color",
+});
+
+export const tokenFields: TokenField[] = [
+  color("background", "Background"),
+  color("foreground", "Foreground"),
+  color("muted", "Muted"),
+  color("mutedForeground", "Muted foreground"),
+  color("border", "Border"),
+  color("primary", "Primary"),
+  color("onPrimary", "On primary"),
+  color("secondary", "Secondary"),
+  color("onSecondary", "On secondary"),
+  color("success", "Success"),
+  color("onSuccess", "On success"),
+  color("warning", "Warning"),
+  color("onWarning", "On warning"),
+  color("danger", "Danger"),
+  color("onDanger", "On danger"),
+  color("info", "Info"),
+  color("onInfo", "On info"),
   { key: "radius", label: "Radius", type: "number", min: 0, max: 48 },
   {
     key: "paddingX",
@@ -93,10 +165,49 @@ export const tokenFields: {
   { key: "margin", label: "Margin", type: "number", min: 0, max: 48 },
   { key: "fontSize", label: "Font size", type: "number", min: 10, max: 32 },
   { key: "borderWidth", label: "Border width", type: "number", min: 0, max: 6 },
+  {
+    key: "controlHeightSm",
+    label: "Control height sm",
+    type: "number",
+    min: 16,
+    max: 80,
+  },
+  {
+    key: "controlHeightMd",
+    label: "Control height md",
+    type: "number",
+    min: 16,
+    max: 80,
+  },
+  {
+    key: "controlHeightLg",
+    label: "Control height lg",
+    type: "number",
+    min: 16,
+    max: 80,
+  },
 ];
 
-function isComponentKey(key: keyof TokenValues): key is keyof ComponentTokens {
-  return key !== "primary" && key !== "onPrimary";
+/** Global keys that existed in schema v1; v1 files are migrated by filling in the rest. */
+const v1GlobalKeys = [
+  "background",
+  "foreground",
+  "primary",
+  "onPrimary",
+  "border",
+  "radius",
+  "paddingX",
+  "paddingY",
+  "gap",
+  "margin",
+  "fontSize",
+  "borderWidth",
+] as const;
+
+export function isComponentKey(
+  key: keyof TokenValues,
+): key is keyof ComponentTokens {
+  return (componentTokenKeys as readonly string[]).includes(key);
 }
 
 function inheritedKey(
@@ -114,12 +225,11 @@ export function resolveComponent(
   system: DesignSystem,
   id: ComponentId,
 ): ComponentTokens {
-  const { primary, onPrimary, ...tokens } = system.global;
-  if (inheritedKey(id, "background") === "primary") {
-    tokens.background = primary;
-    tokens.foreground = onPrimary;
+  const tokens = {} as Record<keyof ComponentTokens, string | number>;
+  for (const key of componentTokenKeys) {
+    tokens[key] = system.global[inheritedKey(id, key)];
   }
-  return { ...tokens, ...system.components[id] };
+  return { ...(tokens as ComponentTokens), ...system.components[id] };
 }
 
 function kebabCase(key: string): string {
@@ -136,8 +246,7 @@ export function toCSSVariables(system: DesignSystem): Record<string, string> {
     variables[`--ds-${kebabCase(key)}`] = cssValue(system.global[key]);
   }
   for (const id of componentIds) {
-    for (const { key } of tokenFields) {
-      if (!isComponentKey(key)) continue;
+    for (const key of componentTokenKeys) {
       const override = system.components[id][key];
       variables[`--${id}-${kebabCase(key)}`] =
         override === undefined
@@ -213,9 +322,24 @@ export function parseDesignSystem(text: string): DesignSystem {
     ["version", "name", "global", "components"],
     "system",
   );
-  if (value.version !== 1) throw new Error("system.version must be 1");
+  if (value.version !== 1 && value.version !== 2) {
+    throw new Error("system.version must be 1 or 2");
+  }
   if (typeof value.name !== "string" || value.name.length > 80) {
     throw new Error("system.name must be a string of at most 80 characters");
+  }
+  if (value.version === 1) {
+    // v1 predates the extended roles and size scale: accept only v1 keys, then
+    // fill the new ones from the defaults.
+    requireObject(value.global, "global");
+    requireKnownKeys(value.global, v1GlobalKeys, "global");
+    for (const key of v1GlobalKeys) {
+      if (!Object.prototype.hasOwnProperty.call(value.global, key)) {
+        throw new Error(`global.${key} is required`);
+      }
+    }
+    value.global = { ...defaultSystem.global, ...value.global };
+    value.version = 2;
   }
   validateTokens(value.global, "global", false);
   requireObject(value.components, "components");

@@ -1,10 +1,15 @@
 "use client";
 
 import { useId, useState, type CSSProperties, type ReactNode } from "react";
-import { Button } from "@base-ui/react/button";
-import { Input } from "@base-ui/react/input";
-import { Switch } from "@base-ui/react/switch";
-import { Checkbox } from "@base-ui/react/checkbox";
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  Switch,
+} from "./components";
+import { Icon } from "./icons";
 import {
   componentIds,
   toCSSVariables,
@@ -13,7 +18,12 @@ import {
 } from "./tokens";
 import styles from "./preview.module.css";
 
-const components: Record<ComponentId, { name: string; description: string }> = {
+const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+const componentMeta: Record<
+  ComponentId,
+  { name: string; description: string }
+> = {
   button: {
     name: "Button",
     description: "A little nudge to take the next step.",
@@ -31,32 +41,6 @@ const components: Record<ComponentId, { name: string; description: string }> = {
   },
 };
 
-function Icon({
-  kind = "check",
-}: {
-  kind?: "check" | "arrow" | "plus" | "spark";
-}) {
-  return (
-    <svg
-      className={styles.icon}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {kind === "check" && <path d="m4 10 4 4 8-8" />}
-      {kind === "arrow" && <path d="M4 10h12m-5-5 5 5-5 5" />}
-      {kind === "plus" && <path d="M10 4v12M4 10h12" />}
-      {kind === "spark" && (
-        <path d="m10 2 2.2 5.8L18 10l-5.8 2.2L10 18l-2.2-5.8L2 10l5.8-2.2L10 2Z" />
-      )}
-    </svg>
-  );
-}
-
 function DemoButton({
   children = "Get started",
   disabled = false,
@@ -68,12 +52,11 @@ function DemoButton({
   return (
     <div className={styles.actionDemo}>
       <Button
-        className={styles.button}
         disabled={disabled}
         onClick={() => setClicks((count) => count + 1)}
+        endIcon={<Icon name={clicks ? "check" : "arrow"} />}
       >
-        <span>{clicks ? "All set" : children}</span>
-        <Icon kind={clicks ? "check" : "arrow"} />
+        {clicks ? "All set" : children}
       </Button>
       <span className={styles.srOnly} role="status">
         {clicks > 0 ? `Demo action completed successfully (${clicks}).` : ""}
@@ -82,169 +65,200 @@ function DemoButton({
   );
 }
 
-function TextInput({
-  label,
-  disabled = false,
-  defaultValue,
-  placeholder,
-}: {
-  label: string;
-  disabled?: boolean;
-  defaultValue?: string;
-  placeholder?: string;
-}) {
-  return (
-    <label className={styles.inputGroup}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <Input
-        className={styles.input}
-        disabled={disabled}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  defaultChecked = false,
-  disabled = false,
-  onCheckedChange,
-}: {
-  label: string;
-  defaultChecked?: boolean;
-  disabled?: boolean;
-  onCheckedChange?: () => void;
-}) {
-  return (
-    <label className={styles.switchGroup} data-disabled={disabled || undefined}>
-      <Switch.Root
-        className={styles.switch}
-        defaultChecked={defaultChecked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      >
-        <Switch.Thumb className={styles.thumb} />
-      </Switch.Root>
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function Check({
-  label,
-  defaultChecked = false,
-  disabled = false,
-  onCheckedChange,
-}: {
-  label: string;
-  defaultChecked?: boolean;
-  disabled?: boolean;
-  onCheckedChange?: () => void;
-}) {
-  return (
-    <label
-      className={styles.checkboxGroup}
-      data-disabled={disabled || undefined}
-    >
-      <Checkbox.Root
-        className={styles.checkbox}
-        defaultChecked={defaultChecked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      >
-        <Checkbox.Indicator className={styles.indicator}>
-          <Icon />
-        </Checkbox.Indicator>
-      </Checkbox.Root>
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function Badge({
-  children,
-  subtle = false,
-}: {
-  children: ReactNode;
-  subtle?: boolean;
-}) {
-  return (
-    <span className={`${styles.badge} ${subtle ? styles.subtle : ""}`}>
-      <span className={styles.badgeDot} aria-hidden="true" />
-      {children}
-    </span>
-  );
-}
-
-function SampleCard({ alternate = false }: { alternate?: boolean }) {
-  return (
-    <article className={`${styles.card} ${alternate ? styles.elevated : ""}`}>
-      <span className={styles.cardSymbol}>
-        <Icon kind={alternate ? "plus" : "spark"} />
-      </span>
-      <strong>{alternate ? "Space to explore" : "Make something great"}</strong>
-      <p className={styles.muted}>
-        {alternate
-          ? "Your next idea starts right here."
-          : "Good design starts with a few thoughtful details."}
-      </p>
-    </article>
-  );
-}
-
 function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
   switch (id) {
     case "button":
+      if (!expanded)
+        return (
+          <div className={styles.states}>
+            <DemoButton />
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="ghost">Ghost</Button>
+          </div>
+        );
       return (
-        <div className={styles.states}>
-          <DemoButton />
-          <DemoButton disabled>Disabled</DemoButton>
+        <div className={styles.rows}>
+          <div className={styles.states}>
+            <DemoButton />
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="outline">Outline</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="destructive">Delete</Button>
+            <Button variant="link">Learn more</Button>
+          </div>
+          <div className={styles.states}>
+            <Button size="sm">Small</Button>
+            <Button size="md">Medium</Button>
+            <Button size="lg">Large</Button>
+            <Button variant="outline" iconOnly aria-label="Add item">
+              <Icon name="plus" />
+            </Button>
+          </div>
+          <div className={styles.states}>
+            <Button startIcon={<Icon name="download" />}>Download</Button>
+            <Button loading>Saving</Button>
+            <DemoButton disabled>Disabled</DemoButton>
+          </div>
         </div>
       );
     case "input":
       return (
         <div className={styles.inputStates}>
-          <TextInput label="Email address" placeholder="you@example.com" />
+          <Input
+            label="Email address"
+            type="email"
+            placeholder="you@example.com"
+            description={expanded ? "We only use it for receipts." : undefined}
+          />
           {expanded && (
-            <TextInput
-              label="Read-only workspace email"
-              defaultValue="hello@studio.design"
-              disabled
-            />
+            <>
+              <Input
+                label="Search"
+                hideLabel
+                type="search"
+                size="sm"
+                placeholder="Search components…"
+                startIcon={<Icon name="search" />}
+              />
+              <Input
+                label="Workspace URL"
+                type="url"
+                defaultValue="studio"
+                error="Enter a full URL, including https://"
+              />
+              <Input
+                label="Read-only workspace email"
+                defaultValue="hello@studio.design"
+                readOnly
+              />
+              <Input label="Unavailable" size="lg" disabled defaultValue="—" />
+            </>
           )}
         </div>
       );
     case "card":
       return (
         <div className={styles.cardStates}>
-          <SampleCard />
-          {expanded && <SampleCard alternate />}
+          <Card>
+            <Card.Icon>
+              <Icon name="spark" />
+            </Card.Icon>
+            <Card.Header>
+              <Card.Title>Make something great</Card.Title>
+              <Card.Description>
+                Good design starts with a few thoughtful details.
+              </Card.Description>
+            </Card.Header>
+          </Card>
+          {expanded && (
+            <>
+              <Card variant="elevated">
+                <Card.Icon>
+                  <Icon name="plus" />
+                </Card.Icon>
+                <Card.Header>
+                  <Card.Title>Space to explore</Card.Title>
+                  <Card.Description>
+                    Your next idea starts right here.
+                  </Card.Description>
+                </Card.Header>
+                <Card.Footer>
+                  <Button size="sm">Start</Button>
+                  <Button size="sm" variant="ghost">
+                    Later
+                  </Button>
+                </Card.Footer>
+              </Card>
+              <Card variant="filled" size="sm">
+                <Card.Header>
+                  <Card.Title>Filled, small</Card.Title>
+                  <Card.Description>
+                    A quieter surface for secondary content.
+                  </Card.Description>
+                </Card.Header>
+              </Card>
+            </>
+          )}
         </div>
       );
     case "badge":
-      return (
+      return expanded ? (
+        <div className={styles.rows}>
+          {(["solid", "subtle", "outline"] as const).map((variant) => (
+            <div className={styles.states} key={variant}>
+              {(
+                [
+                  "neutral",
+                  "primary",
+                  "success",
+                  "warning",
+                  "danger",
+                  "info",
+                ] as const
+              ).map((tone) => (
+                <Badge key={tone} variant={variant} tone={tone}>
+                  {title(tone)}
+                </Badge>
+              ))}
+            </div>
+          ))}
+          <div className={styles.states}>
+            <Badge size="sm" dot tone="success">
+              Small
+            </Badge>
+            <Badge dot tone="success">
+              Medium
+            </Badge>
+            <Badge size="lg" dot tone="success">
+              Large
+            </Badge>
+          </div>
+        </div>
+      ) : (
         <div className={styles.states}>
-          <Badge>Published</Badge>
-          <Badge subtle>Draft</Badge>
-          {expanded && <Badge>In review</Badge>}
+          <Badge dot>Published</Badge>
+          <Badge variant="subtle">Draft</Badge>
+          <Badge variant="subtle" tone="success" dot>
+            Live
+          </Badge>
         </div>
       );
     case "switch":
       return (
         <div className={styles.toggleStates}>
-          <Toggle label="Notifications" defaultChecked />
-          <Toggle label="Focus mode" />
-          {expanded && <Toggle label="Unavailable" disabled />}
+          <Switch label="Notifications" defaultChecked />
+          <Switch label="Focus mode" />
+          {expanded && (
+            <>
+              <Switch
+                label="Auto-save"
+                description="Saves every change as you go."
+                size="lg"
+                defaultChecked
+              />
+              <Switch label="Compact rows" size="sm" labelPosition="start" />
+              <Switch label="Unavailable" disabled />
+            </>
+          )}
         </div>
       );
     case "checkbox":
       return (
         <div className={styles.toggleStates}>
-          <Check label="Include the details" defaultChecked />
-          <Check label="Keep me in the loop" />
-          {expanded && <Check label="Unavailable" disabled defaultChecked />}
+          <Checkbox label="Include the details" defaultChecked />
+          <Checkbox label="Keep me in the loop" />
+          {expanded && (
+            <>
+              <Checkbox label="Select all" indeterminate />
+              <Checkbox
+                label="I accept the terms"
+                required
+                error="Please accept the terms to continue."
+              />
+              <Checkbox label="Small print" size="sm" />
+              <Checkbox label="Unavailable" disabled defaultChecked />
+            </>
+          )}
         </div>
       );
   }
@@ -274,7 +288,7 @@ function WorkspaceSettings() {
         <div className={styles.workspaceHeader}>
           <div className={styles.workspaceIdentity}>
             <span className={styles.workspaceMark}>
-              <Icon kind="spark" />
+              <Icon name="spark" size="1.15em" />
             </span>
             <div>
               <h3 id={titleId}>Workspace settings</h3>
@@ -283,61 +297,65 @@ function WorkspaceSettings() {
               </p>
             </div>
           </div>
-          <Badge>Pro plan</Badge>
+          <Badge variant="subtle" tone="primary">
+            Pro plan
+          </Badge>
         </div>
         <div className={styles.workspaceBody}>
           <div className={styles.workspaceFields}>
-            <label className={styles.inputGroup}>
-              <span className={styles.fieldLabel}>Workspace name</span>
-              <Input
-                className={styles.input}
-                name="workspace"
-                required
-                value={workspace}
-                onValueChange={(value) => {
-                  setWorkspace(value);
-                  markChanged();
-                }}
-              />
-            </label>
+            <Input
+              label="Workspace name"
+              name="workspace"
+              required
+              value={workspace}
+              onValueChange={(value) => {
+                setWorkspace(value);
+                markChanged();
+              }}
+            />
             <div className={styles.preferences}>
-              <Toggle
+              <Switch
                 label="Email notifications"
                 defaultChecked
                 onCheckedChange={markChanged}
               />
-              <Check
+              <Checkbox
                 label="Send me a weekly summary"
                 defaultChecked
                 onCheckedChange={markChanged}
               />
             </div>
           </div>
-          <article className={styles.card}>
-            <span className={styles.cardSymbol}>
-              <Icon kind="spark" />
-            </span>
-            <strong>A little more you.</strong>
-            <p className={styles.muted}>
+          <Card>
+            <Card.Icon>
+              <Icon name="spark" />
+            </Card.Icon>
+            <Card.Title>A little more you.</Card.Title>
+            <Card.Description>
               Your colors, your rhythm. One system that makes every detail feel
               at home.
-            </p>
-            <Badge>All connected</Badge>
-          </article>
+            </Card.Description>
+            <Badge dot tone="success" variant="subtle">
+              All connected
+            </Badge>
+          </Card>
         </div>
         <div className={styles.workspaceFooter}>
           <p className={styles.saveStatus} role="status">
             {saved ? (
               <>
-                <Icon /> Saved locally in this preview · {saves}
+                <Icon name="check" size="1.15em" /> Saved locally in this
+                preview · {saves}
               </>
             ) : (
               "Make it yours. Try a few changes."
             )}
           </p>
-          <Button type="submit" className={styles.button}>
-            <span>{saved ? "Changes saved" : "Save changes"}</span>
-            <Icon kind={saved ? "check" : "arrow"} />
+          <Button
+            type="submit"
+            endIcon={<Icon name={saved ? "check" : "arrow"} />}
+          >
+            {saved ? "Changes saved" : "Save changes"}
           </Button>
         </div>
       </form>
@@ -368,12 +386,12 @@ export function Preview({
             <h2 id={titleId}>
               {overview
                 ? "Small pieces. Endless possibilities."
-                : components[selected].name}
+                : componentMeta[selected].name}
             </h2>
             <p className={styles.intro}>
               {overview
                 ? "A living collection, shaped by your design decisions."
-                : components[selected].description}
+                : componentMeta[selected].description}
             </p>
           </div>
           <span className={styles.liveIndicator}>
@@ -386,10 +404,10 @@ export function Preview({
               <section
                 className={styles.showcase}
                 key={id}
-                aria-label={`${components[id].name} preview`}
+                aria-label={`${componentMeta[id].name} preview`}
               >
                 <header className={styles.showcaseHeader}>
-                  <h3>{components[id].name}</h3>
+                  <h3>{componentMeta[id].name}</h3>
                   <span>
                     {overview
                       ? String(index + 1).padStart(2, "0")
@@ -403,7 +421,7 @@ export function Preview({
                 </div>
                 <p className={styles.showcaseCaption}>
                   {overview
-                    ? components[id].description
+                    ? componentMeta[id].description
                     : "Live states · Try the controls to see how they feel."}
                 </p>
               </section>

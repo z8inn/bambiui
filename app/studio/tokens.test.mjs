@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   componentIds,
+  componentTokenKeys,
   defaultSystem,
   exportCSS,
   parseDesignSystem,
@@ -21,14 +22,48 @@ const numericRanges = {
   margin: [0, 48],
   fontSize: [10, 32],
   borderWidth: [0, 6],
+  controlHeightSm: [16, 80],
+  controlHeightMd: [16, 80],
+  controlHeightLg: [16, 80],
 };
 const colorKeys = [
   "background",
   "foreground",
+  "muted",
+  "mutedForeground",
+  "border",
   "primary",
   "onPrimary",
-  "border",
+  "secondary",
+  "onSecondary",
+  "success",
+  "onSuccess",
+  "warning",
+  "onWarning",
+  "danger",
+  "onDanger",
+  "info",
+  "onInfo",
 ];
+const globalOnlyKeys = Object.keys(defaultSystem.global).filter(
+  (key) => !componentTokenKeys.includes(key),
+);
+const pickComponentTokens = (global) =>
+  Object.fromEntries(componentTokenKeys.map((key) => [key, global[key]]));
+const v1Global = {
+  background: "#ffffff",
+  foreground: "#27272a",
+  primary: "#e8673c",
+  onPrimary: "#ffffff",
+  border: "#e4e4e7",
+  radius: 8,
+  paddingX: 16,
+  paddingY: 10,
+  gap: 8,
+  margin: 0,
+  fontSize: 14,
+  borderWidth: 1,
+};
 const kebab = (key) =>
   key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
@@ -50,14 +85,26 @@ test("public defaults and storage key match the contract", () => {
   ]);
   assert.equal(STORAGE_KEY, "bambiui.design-system.v1");
   assert.deepEqual(defaultSystem, {
-    version: 1,
+    version: 2,
     name: "Untitled system",
     global: {
       background: "#ffffff",
       foreground: "#27272a",
+      muted: "#f4f4f5",
+      mutedForeground: "#63636b",
+      border: "#e4e4e7",
       primary: "#e8673c",
       onPrimary: "#ffffff",
-      border: "#e4e4e7",
+      secondary: "#f1ede8",
+      onSecondary: "#27272a",
+      success: "#1a7f45",
+      onSuccess: "#ffffff",
+      warning: "#a15c00",
+      onWarning: "#ffffff",
+      danger: "#d2393f",
+      onDanger: "#ffffff",
+      info: "#2563c9",
+      onInfo: "#ffffff",
       radius: 8,
       paddingX: 16,
       paddingY: 10,
@@ -65,6 +112,9 @@ test("public defaults and storage key match the contract", () => {
       margin: 0,
       fontSize: 14,
       borderWidth: 1,
+      controlHeightSm: 32,
+      controlHeightMd: 36,
+      controlHeightLg: 44,
     },
     components: {
       button: {},
@@ -101,10 +151,10 @@ for (const id of componentIds) {
   test(`${id}: resolve inherits the correct globals and merges overrides`, () => {
     const system = freshSystem();
     system.global.onPrimary = "#123456";
-    const { primary, onPrimary, ...expected } = system.global;
+    const expected = pickComponentTokens(system.global);
     if (["button", "switch", "checkbox"].includes(id)) {
-      expected.background = primary;
-      expected.foreground = onPrimary;
+      expected.background = system.global.primary;
+      expected.foreground = system.global.onPrimary;
     }
     assert.deepEqual(resolveComponent(system, id), expected);
     system.components[id] = {
@@ -117,14 +167,19 @@ for (const id of componentIds) {
       ...expected,
       ...system.components[id],
     });
-    assert.equal("primary" in resolveComponent(system, id), false);
-    assert.equal("onPrimary" in resolveComponent(system, id), false);
+    for (const key of globalOnlyKeys)
+      assert.equal(key in resolveComponent(system, id), false);
   });
 }
 
 test("CSS map includes every global and component token with correct references and px units", () => {
   const variables = toCSSVariables(defaultSystem);
-  assert.equal(Object.keys(variables).length, 12 + 6 * 10);
+  assert.equal(
+    Object.keys(variables).length,
+    tokenFields.length + componentIds.length * componentTokenKeys.length,
+  );
+  assert.equal(tokenFields.length, 27);
+  assert.equal(componentTokenKeys.length, 10);
   for (const [key, value] of Object.entries(defaultSystem.global)) {
     assert.equal(
       variables[`--ds-${kebab(key)}`],
@@ -212,7 +267,7 @@ test("parser accepts name length boundaries and rejects invalid names or version
   for (const name of ["a".repeat(81), null, 1, {}, []]) {
     assert.throws(() => parse({ ...freshSystem(), name }), /system.name/);
   }
-  for (const version of [0, 2, "1", null, true, undefined]) {
+  for (const version of [0, 3, "1", "2", null, true, undefined]) {
     assert.throws(() => parse({ ...freshSystem(), version }), /system.version/);
   }
 });
@@ -259,17 +314,42 @@ test("parser rejects malformed JSON, invalid shapes, missing fields, and unknown
       assert.throws(() => parse(system), /Unknown field/);
     }
   }
-  for (const key of ["primary", "onPrimary"]) {
+  for (const key of globalOnlyKeys) {
     const system = freshSystem();
-    system.components.button[key] = "#123456";
+    system.components.button[key] = defaultSystem.global[key];
     assert.throws(() => parse(system), /Unknown field/);
   }
+});
+
+test("v1 files migrate to v2 by keeping their values and adding new defaults", () => {
+  const v1 = {
+    version: 1,
+    name: "Legacy",
+    global: { ...v1Global, primary: "#123456", radius: 4 },
+    components: { ...freshSystem().components, card: { gap: 3 } },
+  };
+  const migrated = parse(v1);
+  assert.equal(migrated.version, 2);
+  assert.deepEqual(migrated.global, {
+    ...defaultSystem.global,
+    primary: "#123456",
+    radius: 4,
+  });
+  assert.deepEqual(migrated.components.card, { gap: 3 });
+  for (const key of Object.keys(v1Global)) {
+    const missing = structuredClone(v1);
+    delete missing.global[key];
+    assert.throws(() => parse(missing), new RegExp(`global.${key}`));
+  }
+  const withV2Key = structuredClone(v1);
+  withV2Key.global.success = "#00ff00";
+  assert.throws(() => parse(withV2Key), /Unknown field: global.success/);
 });
 
 for (const key of colorKeys) {
   test(`${key}: parser only accepts six-digit hex colors globally and in overrides`, () => {
     const targets =
-      key === "primary" || key === "onPrimary"
+      globalOnlyKeys.includes(key)
         ? ["global"]
         : ["global", ...componentIds];
     for (const target of targets) {
@@ -306,7 +386,10 @@ for (const key of colorKeys) {
 
 for (const [key, [min, max]] of Object.entries(numericRanges)) {
   test(`${key}: parser enforces finite numeric ranges globally and in every override`, () => {
-    for (const target of ["global", ...componentIds]) {
+    const targets = globalOnlyKeys.includes(key)
+      ? ["global"]
+      : ["global", ...componentIds];
+    for (const target of targets) {
       const system = freshSystem();
       const tokens =
         target === "global" ? system.global : system.components[target];

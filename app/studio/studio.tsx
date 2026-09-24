@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Button } from "@base-ui/react/button";
 import { Dialog } from "@base-ui/react/dialog";
+import { Tabs } from "@base-ui/react/tabs";
+import { Button, NavItem, SegmentedControl } from "./controls";
 import { Icon } from "./icons";
 import { Preview } from "./preview";
 import {
   componentIds,
   defaultSystem,
   exportCSS,
+  isComponentKey,
   parseDesignSystem,
   resolveComponent,
   STORAGE_KEY,
@@ -17,11 +19,13 @@ import {
   type ComponentId,
   type ComponentTokens,
   type DesignSystem,
+  type TokenField,
   type TokenValues,
 } from "./tokens";
 
 type Selection = "overview" | ComponentId;
 type Scope = "global" | "component";
+type View = "preview" | "code";
 const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 const presets = [
   { name: "Terracotta", color: "#e8673c" },
@@ -31,6 +35,17 @@ const presets = [
   { name: "Graphite", color: "#27272a" },
 ];
 
+function isValidToken(field: TokenField, text: string) {
+  if (field.type === "color") return /^#[\da-f]{6}$/i.test(text);
+  const number = Number(text);
+  return (
+    text.trim() !== "" &&
+    Number.isFinite(number) &&
+    number >= field.min! &&
+    number <= field.max!
+  );
+}
+
 function TokenControl({
   field,
   value,
@@ -38,21 +53,17 @@ function TokenControl({
   onChange,
   onReset,
 }: {
-  field: (typeof tokenFields)[number];
+  field: TokenField;
   value: string | number;
   overridden?: boolean;
   onChange: (value: string | number) => void;
   onReset: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isColor = field.type === "color";
   const displayed = draft ?? String(value);
-  const valid = isColor
-    ? /^#[\da-f]{6}$/i.test(displayed)
-    : displayed.trim() !== "" &&
-      Number.isFinite(Number(displayed)) &&
-      Number(displayed) >= field.min! &&
-      Number(displayed) <= field.max!;
+  const valid = isValidToken(field, displayed);
   return (
     <div className="token-control">
       <div className="flex items-center justify-between gap-2">
@@ -62,28 +73,31 @@ function TokenControl({
         >
           {field.label}
         </label>
-        {overridden !== undefined && (
+        {overridden === true && (
           <button
             type="button"
-            className={`inherit-button ${overridden ? "is-override" : ""}`}
-            aria-label={`Reset ${field.label.toLowerCase()} to global token`}
-            disabled={!overridden}
+            className="inherit-button"
+            aria-label={`Reset ${field.label.toLowerCase()} override`}
+            title="Reset to global token"
             onClick={() => {
               setDraft(null);
               onReset();
+              // The reset control disappears; keep focus in the field it affected.
+              inputRef.current?.focus();
             }}
-            title={
-              overridden
-                ? "Reset to global token"
-                : "Inherited from global tokens"
-            }
           >
-            <Icon name={overridden ? "reset" : "link"} size={11} />
-            {overridden ? "Override" : "Global"}
+            <Icon name="reset" size={11} />
+            Override
           </button>
         )}
+        {overridden === false && (
+          <span className="inherit-button" title="Inherited from global tokens">
+            <Icon name="link" size={11} />
+            Global
+          </span>
+        )}
       </div>
-      <div className={`token-input ${!valid ? "invalid" : ""}`}>
+      <div className="token-input">
         {isColor && (
           <input
             type="color"
@@ -96,6 +110,7 @@ function TokenControl({
           />
         )}
         <input
+          ref={inputRef}
           id={`token-${field.key}`}
           type={isColor ? "text" : "number"}
           min={field.min}
@@ -108,14 +123,7 @@ function TokenControl({
           onChange={(event) => {
             const next = event.target.value;
             setDraft(next);
-            if (
-              isColor
-                ? /^#[\da-f]{6}$/i.test(next)
-                : next.trim() !== "" &&
-                  Number.isFinite(Number(next)) &&
-                  Number(next) >= field.min! &&
-                  Number(next) <= field.max!
-            )
+            if (isValidToken(field, next))
               onChange(isColor ? next : Number(next));
           }}
           onBlur={() => setDraft(null)}
@@ -154,7 +162,7 @@ export default function Studio() {
   const [scope, setScope] = useState<Scope>("global");
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
-  const [view, setView] = useState<"preview" | "code">("preview");
+  const [view, setView] = useState<View>("preview");
   const [status, setStatus] = useState("Loading local draft…");
   const [notice, setNotice] = useState("");
   const [format, setFormat] = useState<"css" | "json">("css");
@@ -205,8 +213,10 @@ export default function Studio() {
   const isGlobal = scope === "global";
   const values = isGlobal ? system.global : resolveComponent(system, component);
   const fields = tokenFields.filter(
-    ({ key }) => isGlobal || (key !== "primary" && key !== "onPrimary"),
+    ({ key }) => isGlobal || isComponentKey(key),
   );
+  const colorFields = fields.filter((field) => field.type === "color");
+  const numberFields = fields.filter((field) => field.type === "number");
   const overrideCount = Object.values(system.components).reduce(
     (count, tokens) => count + Object.keys(tokens).length,
     0,
@@ -292,13 +302,12 @@ export default function Studio() {
             {status}
           </span>
           <Button
-            className="studio-button import-button"
             aria-label="Import design system"
             disabled={!ready}
+            startIcon={<Icon name="upload" />}
             onClick={() => importRef.current?.click()}
           >
-            <Icon name="upload" />
-            <span>Import</span>
+            Import
           </Button>
           <input
             ref={importRef}
@@ -331,12 +340,16 @@ export default function Studio() {
           />
           <Dialog.Root onOpenChange={() => setCopyStatus("")}>
             <Dialog.Trigger
-              className="studio-button primary-button"
+              render={
+                <Button
+                  variant="primary"
+                  startIcon={<Icon name="download" />}
+                />
+              }
               aria-label="Export tokens"
               disabled={!ready}
             >
-              <Icon name="download" />
-              <span>Export tokens</span>
+              Export tokens
             </Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Backdrop className="studio-backdrop" />
@@ -346,8 +359,13 @@ export default function Studio() {
                     Take your system with you.
                   </Dialog.Title>
                   <Dialog.Close
-                    className="icon-button"
-                    aria-label="Close export dialog"
+                    render={
+                      <Button
+                        variant="ghost"
+                        iconOnly
+                        aria-label="Close export dialog"
+                      />
+                    }
                   >
                     <Icon name="close" />
                   </Dialog.Close>
@@ -357,21 +375,21 @@ export default function Studio() {
                   restore your workspace. Component markup and styles are not
                   included.
                 </Dialog.Description>
-                <div className="segmented mt-5" aria-label="Export format">
+                <SegmentedControl
+                  className="mt-5"
+                  aria-label="Export format"
+                  value={format}
+                  onValueChange={(next) => {
+                    setFormat(next);
+                    setCopyStatus("");
+                  }}
+                >
                   {(["css", "json"] as const).map((item) => (
-                    <Button
-                      key={item}
-                      aria-pressed={format === item}
-                      onClick={() => {
-                        setFormat(item);
-                        setCopyStatus("");
-                      }}
-                      className={format === item ? "active" : ""}
-                    >
+                    <SegmentedControl.Item key={item} value={item}>
                       {item.toUpperCase()}
-                    </Button>
+                    </SegmentedControl.Item>
                   ))}
-                </div>
+                </SegmentedControl>
                 <pre
                   className="code-output"
                   tabIndex={0}
@@ -383,14 +401,12 @@ export default function Studio() {
                   {copyStatus}
                 </p>
                 <div className="mt-3 flex justify-end gap-2">
-                  <Button className="studio-button" onClick={copy}>
-                    Copy {format.toUpperCase()}
-                  </Button>
+                  <Button onClick={copy}>Copy {format.toUpperCase()}</Button>
                   <Button
-                    className="studio-button primary-button"
+                    variant="primary"
+                    startIcon={<Icon name="download" />}
                     onClick={download}
                   >
-                    <Icon name="download" />
                     Download
                   </Button>
                 </div>
@@ -411,16 +427,21 @@ export default function Studio() {
           </div>
         </div>
         <div className="sidebar-section-label">WORKSPACE</div>
-        <Button
-          className={`nav-item ${selection === "overview" ? "active" : ""}`}
-          aria-pressed={selection === "overview"}
+        <NavItem
+          icon={<Icon name="grid" />}
+          current={selection === "overview"}
+          end={<span className="nav-end">6</span>}
           onClick={() => select("overview")}
         >
-          <Icon name="grid" />
-          Overview<span className="nav-end">6</span>
-        </Button>
-        <Button
-          className="nav-item"
+          Overview
+        </NavItem>
+        <NavItem
+          icon={<Icon name="sliders" />}
+          end={
+            <span className="nav-end">
+              <Icon name="chevron" size={12} />
+            </span>
+          }
           onClick={() => {
             setScope("global");
             document
@@ -428,12 +449,8 @@ export default function Studio() {
               ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           }}
         >
-          <Icon name="sliders" />
           Global tokens
-          <span className="nav-end">
-            <Icon name="chevron" size={12} />
-          </span>
-        </Button>
+        </NavItem>
         <div className="sidebar-divider" />
         <div className="sidebar-section-label flex justify-between">
           COMPONENTS<span>06</span>
@@ -451,18 +468,26 @@ export default function Studio() {
           {componentIds
             .filter((id) => id.includes(query.toLowerCase().trim()))
             .map((id) => (
-              <Button
+              <NavItem
                 key={id}
-                className={`nav-item ${selection === id ? "active" : ""}`}
-                aria-pressed={selection === id}
+                icon={<Icon name={id} />}
+                current={selection === id}
+                end={
+                  Object.keys(system.components[id]).length > 0 && (
+                    <>
+                      <span
+                        className="override-dot"
+                        aria-hidden="true"
+                        title="Has custom tokens"
+                      />
+                      <span className="sr-only">, has custom tokens</span>
+                    </>
+                  )
+                }
                 onClick={() => select(id)}
               >
-                <Icon name={id} />
                 {title(id)}
-                {Object.keys(system.components[id]).length > 0 && (
-                  <span className="override-dot" title="Has custom tokens" />
-                )}
-              </Button>
+              </NavItem>
             ))}
           {!componentIds.some((id) =>
             id.includes(query.toLowerCase().trim()),
@@ -519,78 +544,74 @@ export default function Studio() {
             </span>
           </div>
         </div>
-        <div className="preview-toolbar">
-          <div className="view-switch" aria-label="Workspace view">
-            <Button
-              aria-pressed={view === "preview"}
-              onClick={() => setView("preview")}
-              className={view === "preview" ? "active" : ""}
-            >
-              <Icon name="grid" size={14} />
-              Preview
-            </Button>
-            <Button
-              aria-pressed={view === "code"}
-              onClick={() => setView("code")}
-              className={view === "code" ? "active" : ""}
-            >
-              <Icon name="code" size={15} />
-              Tokens
-            </Button>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="viewport-label">
-              {compact ? "375 px" : "Responsive"}
-            </span>
-            <div className="segmented" aria-label="Preview width">
-              <Button
-                aria-label="Desktop preview"
-                aria-pressed={!compact}
-                className={!compact ? "active" : ""}
-                onClick={() => setCompact(false)}
+        <Tabs.Root
+          className="workspace-tabs"
+          value={view}
+          onValueChange={(next) => setView(next as View)}
+        >
+          <div className="preview-toolbar">
+            <Tabs.List className="view-switch" aria-label="Workspace view">
+              <Tabs.Tab value="preview">
+                <Icon name="grid" size={14} />
+                Preview
+              </Tabs.Tab>
+              <Tabs.Tab value="code">
+                <Icon name="code" size={15} />
+                Tokens
+              </Tabs.Tab>
+            </Tabs.List>
+            <div className="flex items-center gap-3">
+              <span className="viewport-label">
+                {compact ? "375 px" : "Responsive"}
+              </span>
+              <SegmentedControl
+                aria-label="Preview width"
+                value={compact ? "mobile" : "desktop"}
+                onValueChange={(next) => setCompact(next === "mobile")}
               >
-                <Icon name="desktop" size={15} />
-              </Button>
-              <Button
-                aria-label="Mobile preview"
-                aria-pressed={compact}
-                className={compact ? "active" : ""}
-                onClick={() => setCompact(true)}
-              >
-                <Icon name="mobile" size={15} />
-              </Button>
+                <SegmentedControl.Item value="desktop" aria-label="Desktop preview">
+                  <Icon name="desktop" size={15} />
+                </SegmentedControl.Item>
+                <SegmentedControl.Item value="mobile" aria-label="Mobile preview">
+                  <Icon name="mobile" size={15} />
+                </SegmentedControl.Item>
+              </SegmentedControl>
             </div>
           </div>
-        </div>
-        <div className="preview-canvas">
-          {notice && (
-            <div role="status" className="notice">
-              <span>{notice}</span>
-              <Button
-                className="icon-button"
-                aria-label="Dismiss notification"
-                onClick={() => setNotice("")}
-              >
-                <Icon name="close" size={14} />
-              </Button>
-            </div>
-          )}
-          {view === "preview" ? (
-            <div className={`preview-frame ${compact ? "compact" : ""}`}>
-              <div className="canvas-label">
-                <span>
-                  {selection === "overview"
-                    ? "COMPONENT COLLECTION"
-                    : `${selection.toUpperCase()} EXPLORER`}
-                </span>
-                <span>
-                  {selection === "overview" ? "01 — 06" : "INTERACTIVE"}
-                </span>
+          <div className="preview-canvas">
+            {notice && (
+              <div role="status" className="notice">
+                <span>{notice}</span>
+                <Button
+                  variant="ghost"
+                  iconOnly
+                  aria-label="Dismiss notification"
+                  onClick={() => setNotice("")}
+                >
+                  <Icon name="close" size={14} />
+                </Button>
               </div>
-              <Preview selected={selection} system={system} compact={compact} />
-            </div>
-          ) : (
-            <div className="tokens-code">
+            )}
+            <Tabs.Panel value="preview">
+              <div className={`preview-frame ${compact ? "compact" : ""}`}>
+                <div className="canvas-label">
+                  <span>
+                    {selection === "overview"
+                      ? "COMPONENT COLLECTION"
+                      : `${selection.toUpperCase()} EXPLORER`}
+                  </span>
+                  <span>
+                    {selection === "overview" ? "01 — 06" : "INTERACTIVE"}
+                  </span>
+                </div>
+                <Preview
+                  selected={selection}
+                  system={system}
+                  compact={compact}
+                />
+              </div>
+            </Tabs.Panel>
+            <Tabs.Panel value="code" className="tokens-code">
               <h2>One source of truth.</h2>
               <p>
                 Global foundations and component aliases, as CSS custom
@@ -599,13 +620,13 @@ export default function Studio() {
               <pre tabIndex={0} aria-label="Live CSS tokens">
                 <code>{exportCSS(system)}</code>
               </pre>
+            </Tabs.Panel>
+            <div className="canvas-footnote">
+              <Icon name="link" size={13} />
+              Connected to your tokens. Always in sync.
             </div>
-          )}
-          <div className="canvas-footnote">
-            <Icon name="link" size={13} />
-            Connected to your tokens. Always in sync.
           </div>
-        </div>
+        </Tabs.Root>
         <footer className="workspace-footer">
           <span>
             <span className="status-dot" />
@@ -629,23 +650,20 @@ export default function Studio() {
           <h2>Token inspector</h2>
           <span className="editor-count">{fields.length}</span>
         </div>
-        <div className="editor-scope segmented" aria-label="Token scope">
-          <Button
-            aria-pressed={isGlobal}
-            className={isGlobal ? "active" : ""}
-            onClick={() => setScope("global")}
-          >
-            Global tokens
-          </Button>
-          <Button
+        <SegmentedControl
+          className="editor-scope"
+          aria-label="Token scope"
+          value={scope}
+          onValueChange={setScope}
+        >
+          <SegmentedControl.Item value="global">Global tokens</SegmentedControl.Item>
+          <SegmentedControl.Item
+            value="component"
             disabled={selection === "overview"}
-            aria-pressed={!isGlobal}
-            className={!isGlobal ? "active" : ""}
-            onClick={() => setScope("component")}
           >
             Component
-          </Button>
-        </div>
+          </SegmentedControl.Item>
+        </SegmentedControl>
         <fieldset disabled={!ready} className="editor-fields">
           <div className="editor-intro">
             <span className="scope-icon">
@@ -695,17 +713,31 @@ export default function Studio() {
               </div>
             </div>
           )}
-          <section className="token-section">
-            <div className="section-heading">
-              <h3>Colors</h3>
-              <span>
-                {fields.filter((field) => field.type === "color").length}
-              </span>
-            </div>
-            <div className="color-fields">
-              {fields
-                .filter((field) => field.type === "color")
-                .map((field) => (
+          {(
+            [
+              {
+                type: "color",
+                heading: "Colors",
+                hint: String(colorFields.length),
+                className: "color-fields",
+                items: colorFields,
+              },
+              {
+                type: "number",
+                heading: "Shape & spacing",
+                hint: "PX",
+                className: "number-fields",
+                items: numberFields,
+              },
+            ] as const
+          ).map((group) => (
+            <section className="token-section" key={group.type}>
+              <div className="section-heading">
+                <h3>{group.heading}</h3>
+                <span>{group.hint}</span>
+              </div>
+              <div className={group.className}>
+                {group.items.map((field) => (
                   <TokenControl
                     key={`${scope}-${component}-${field.key}`}
                     field={field}
@@ -721,36 +753,13 @@ export default function Studio() {
                     }
                   />
                 ))}
-            </div>
-          </section>
-          <section className="token-section">
-            <div className="section-heading">
-              <h3>Shape & spacing</h3>
-              <span>PX</span>
-            </div>
-            <div className="number-fields">
-              {fields
-                .filter((field) => field.type === "number")
-                .map((field) => (
-                  <TokenControl
-                    key={`${scope}-${component}-${field.key}`}
-                    field={field}
-                    value={values[field.key as keyof typeof values]}
-                    overridden={
-                      isGlobal
-                        ? undefined
-                        : Object.hasOwn(system.components[component], field.key)
-                    }
-                    onChange={(value) => setToken(field.key, value)}
-                    onReset={() =>
-                      resetToken(field.key as keyof ComponentTokens)
-                    }
-                  />
-                ))}
-            </div>
-          </section>
+              </div>
+            </section>
+          ))}
           <Button
-            className="studio-button reset-button"
+            className="reset-button"
+            fullWidth
+            startIcon={<Icon name="reset" size={14} />}
             onClick={() => {
               if (
                 !window.confirm(
@@ -770,7 +779,6 @@ export default function Studio() {
               );
             }}
           >
-            <Icon name="reset" size={14} />
             {isGlobal ? "Reset global tokens" : "Reset component overrides"}
           </Button>
         </fieldset>

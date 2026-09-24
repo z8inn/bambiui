@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 const paths = {
   grid: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   sliders: "M4 7h7m4 0h5M4 17h3m4 0h9M11 4v6M7 14v6",
@@ -11,6 +9,8 @@ const paths = {
   reset: "M3 11a9 9 0 1 1 2.5 7M3 4v7h7",
   search: "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14m5 12 6 6",
   check: "m5 12 4 4L19 6",
+  plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
   code: "m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18",
   desktop: "M3 3h18v13H3z M8 21h8m-4-5v5",
   mobile: "M7 2h10v20H7z M11 18h2",
@@ -28,17 +28,20 @@ const paths = {
 } as const;
 
 export type IconName = keyof typeof paths;
+
+/** Decorative icon. `size` accepts pixels or any CSS length, e.g. "1.15em". */
 export function Icon({
   name,
   size = 16,
-  style,
+  className,
 }: {
   name: IconName;
-  size?: number;
-  style?: CSSProperties;
+  size?: number | string;
+  className?: string;
 }) {
   return (
     <svg
+      className={className}
       width={size}
       height={size}
       viewBox="0 0 24 24"
@@ -48,7 +51,6 @@ export function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      style={style}
     >
       <path d={paths[name]} />
     </svg>

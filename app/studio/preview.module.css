@@ -9,6 +9,26 @@
   line-height: 1.5;
   color-scheme: light;
   container-type: inline-size;
+
+  /*
+   * System-wide interaction and elevation values shared by every component.
+   * They complement the editable tokens from toCSSVariables(), which are set
+   * inline on this element.
+   */
+  --ds-size-scale-sm: 0.875;
+  --ds-size-scale-lg: 1.125;
+  --ds-icon-size: 1.15em;
+  --ds-focus-ring-width: 2px;
+  --ds-focus-ring-offset: 3px;
+  --ds-state-hover-brightness: 0.94;
+  --ds-state-pressed-offset: 1px;
+  --ds-state-disabled-opacity: 0.4;
+  --ds-state-unchecked-opacity: 0.5;
+  --ds-text-muted-mix: 70%;
+  --ds-tone-text-mix: 60%;
+  --ds-tone-surface-mix: 12%;
+  --ds-shadow-elevated: 0 8px 24px #27272a0c;
+  --ds-transition-duration: 150ms;
 }
 
 .preview *,
@@ -130,6 +150,13 @@
   min-width: 0;
 }
 
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
 .inputStates {
   display: grid;
   gap: 24px;
@@ -145,7 +172,7 @@
   width: 100%;
 }
 
-.cardStates > .card {
+.cardStates > * {
   flex: 1 1 210px;
   max-width: 340px;
 }
@@ -161,236 +188,13 @@
   display: inline-flex;
 }
 
-.icon {
-  display: block;
-  width: 1.15em;
-  height: 1.15em;
-  flex: 0 0 auto;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  min-height: 34px;
-  padding: var(--button-padding-y) var(--button-padding-x);
-  margin: var(--button-margin);
-  gap: var(--button-gap);
-  border: var(--button-border-width) solid var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-background);
-  color: var(--button-foreground);
-  font-family: inherit;
-  font-size: var(--button-font-size);
-  font-weight: 500;
-  line-height: 1.35;
-  cursor: pointer;
-  transition:
-    filter 150ms ease,
-    transform 150ms ease;
-}
-
-.button:active:not([data-disabled]) {
-  transform: translateY(1px);
-}
-
-.button[data-disabled],
-.input:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.inputGroup {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: var(--input-gap);
-  margin: var(--input-margin);
-}
-
-.fieldLabel {
-  font-weight: 500;
-}
-
-.input {
-  width: 100%;
-  min-width: 0;
-  min-height: 36px;
-  padding: var(--input-padding-y) var(--input-padding-x);
-  border: var(--input-border-width) solid var(--input-border);
-  border-radius: var(--input-radius);
-  background: var(--input-background);
-  color: var(--input-foreground);
-  font-family: inherit;
-  font-size: var(--input-font-size);
-  line-height: 1.4;
-}
-
-.input::placeholder {
-  color: currentColor;
-  opacity: 0.4;
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-  gap: var(--card-gap);
-  padding: var(--card-padding-y) var(--card-padding-x);
-  margin: var(--card-margin);
-  border: var(--card-border-width) solid var(--card-border);
-  border-radius: var(--card-radius);
-  background: var(--card-background);
-  color: var(--card-foreground);
-  font-size: var(--card-font-size);
-  overflow-wrap: anywhere;
-}
-
-.card strong {
-  font-weight: 550;
-  letter-spacing: -0.02em;
-}
-
-.cardSymbol {
-  display: grid;
-  place-items: center;
-  width: 2em;
-  height: 2em;
-  border: 1px solid currentColor;
-  border-radius: inherit;
-  opacity: 0.65;
-}
-
-.elevated {
-  box-shadow: 0 8px 24px #27272a0c;
-}
-
 .muted {
-  opacity: 0.6;
+  color: color-mix(
+    in srgb,
+    var(--ds-foreground) var(--ds-text-muted-mix),
+    var(--ds-background)
+  );
   line-height: 1.65;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  gap: var(--badge-gap);
-  padding: var(--badge-padding-y) var(--badge-padding-x);
-  margin: var(--badge-margin);
-  border: var(--badge-border-width) solid var(--badge-border);
-  border-radius: var(--badge-radius);
-  background: var(--badge-background);
-  color: var(--badge-foreground);
-  font-size: var(--badge-font-size);
-  line-height: 1.2;
-}
-
-.badgeDot {
-  width: 0.4em;
-  height: 0.4em;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.subtle {
-  opacity: 0.5;
-}
-
-.switchGroup,
-.checkboxGroup {
-  display: flex;
-  align-items: center;
-  width: fit-content;
-  min-height: 36px;
-  cursor: pointer;
-}
-
-.switchGroup {
-  gap: var(--switch-gap);
-  padding: var(--switch-padding-y) var(--switch-padding-x);
-  margin: var(--switch-margin);
-  font-size: var(--switch-font-size);
-}
-
-.checkboxGroup {
-  gap: var(--checkbox-gap);
-  padding: var(--checkbox-padding-y) var(--checkbox-padding-x);
-  margin: var(--checkbox-margin);
-  font-size: var(--checkbox-font-size);
-}
-
-.switch {
-  /* One thumb-width of travel, independent of the editable border and label padding. */
-  --thumb-size: max(16px, 1em);
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  width: calc(var(--thumb-size) * 2 + 4px + var(--switch-border-width) * 2);
-  height: calc(var(--thumb-size) + 4px + var(--switch-border-width) * 2);
-  padding: 2px;
-  border: var(--switch-border-width) solid var(--switch-border);
-  border-radius: var(--switch-radius);
-  background: var(--switch-background);
-  color: var(--switch-foreground);
-  font-size: var(--switch-font-size);
-  transition:
-    filter 150ms ease,
-    opacity 150ms ease;
-}
-
-.thumb {
-  width: var(--thumb-size);
-  height: var(--thumb-size);
-  flex: 0 0 auto;
-  border-radius: inherit;
-  background: currentColor;
-  box-shadow: 0 1px 3px #00000016;
-  transition: transform 150ms ease;
-}
-
-.thumb[data-checked] {
-  transform: translateX(100%);
-}
-
-.checkbox {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: calc(max(14px, 1em) + 6px + var(--checkbox-border-width) * 2);
-  height: calc(max(14px, 1em) + 6px + var(--checkbox-border-width) * 2);
-  border: var(--checkbox-border-width) solid var(--checkbox-border);
-  border-radius: var(--checkbox-radius);
-  background: var(--checkbox-background);
-  color: var(--checkbox-foreground);
-  font-size: var(--checkbox-font-size);
-  transition:
-    filter 150ms ease,
-    opacity 150ms ease;
-}
-
-.indicator {
-  display: flex;
-}
-
-.switch[data-unchecked],
-.checkbox[data-unchecked] {
-  filter: grayscale(1);
-  opacity: 0.5;
-}
-
-.switchGroup[data-disabled],
-.checkboxGroup[data-disabled] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.preview :where(.button, .input, .switch, .checkbox):focus-visible {
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 3px;
 }
 
 .context {
@@ -544,11 +348,6 @@
   }
 }
 
-@media (hover: hover) {
-  .button:hover:not([data-disabled]) {
-    filter: brightness(0.94);
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .preview *,
