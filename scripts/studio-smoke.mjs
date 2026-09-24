@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Run: npm run build && node scripts/studio-smoke.mjs (Node 22+).
 // Optional: CHROME_PATH points to a different installed Chrome executable.
+// --screenshots saves light/dark desktop/mobile review captures in .next/color-review.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, stat, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, stat, mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve, extname, sep } from 'node:path';
@@ -11,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../out/', import.meta.url));
+const screenshots = process.argv.includes('--screenshots');
+const captureDir = fileURLToPath(new URL('../.next/color-review/', import.meta.url));
+const captures = [];
 const results = [];
 const browserErrors = [];
 let server, chrome, profile, socket, stopping = false;
@@ -106,6 +110,40 @@ async function check(name, run) {
 }
 async function panels(active, inactive) {
   await wait(`(() => { const a=${active}, b=${inactive}; const p=document.getElementById(a?.getAttribute('aria-controls')); const h=document.getElementById(b?.getAttribute('aria-controls')); return a?.getAttribute('aria-selected')==='true' && b?.getAttribute('aria-selected')==='false' && p && h && !p.hidden && p.getBoundingClientRect().height>0 && h.hidden && getComputedStyle(h).display==='none'; })()`, 'selected tab visible; inactive panel mounted, hidden and display:none');
+}
+// Stage2 uses real CDP input; evaluation only reads state/styles or positions controls.
+const sourceInput = '.editor-fields input[type="text"][id$="-source"]';
+const stored = () => evaluate(`JSON.parse(localStorage.getItem('bambiui.design-system.v1'))`);
+const recipe = mode => `[aria-label="${mode} palette"]`;
+const candidate = () => evaluate(`JSON.stringify([...document.querySelectorAll('[aria-label$=" palette"] [style]')].map(e => e.getAttribute('style')))`);
+const rgb = hex => `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+function contrast(ink, fill) {
+  const luminance = value => value.match(/[\d.]+/g).slice(0, 3).map(Number).map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4).reduce((sum, n, i) => sum + n * [.2126, .7152, .0722][i], 0);
+  const a = luminance(ink), b = luminance(fill);
+  return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+}
+async function openDetails(summary) {
+  const target = named('summary', summary);
+  if (!await evaluate(`(${target}).parentElement.open`)) await click(target);
+}
+async function capture(name) {
+  if (!screenshots) return;
+  await mkdir(captureDir, { recursive: true });
+  // Viewport capture preserves the inspector's independent scroll position.
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  const path = resolve(captureDir, `${name}.png`);
+  await writeFile(path, Buffer.from(data, 'base64'));
+  captures.push(path);
+  console.log(`SCREENSHOT ${path}`);
+}
+async function stage2Type(selector, value) {
+  await click(q(selector));
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 4, commands: ['selectAll'] });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 4 });
+  await send('Input.insertText', { text: value });
+  await key('Tab');
+  await wait(`${q(selector)}.value === ${JSON.stringify(value)}`);
 }
 const specimen = '[aria-label="Button preview"]';
 const workspace = 'input[name="workspace"]';
@@ -248,6 +286,153 @@ try {
         await click(q('#token-background'));
         assert.equal(await evaluate(`(() => { const e=document.querySelector('#token-background'), r=e.getBoundingClientRect(); return document.activeElement===e && r.left>=0 && r.right<=375 && r.top>=0 && r.bottom<=812 && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)); })()`), true, `${view}/${context}: inspector not focusable, visible or hit-testable`);
       }
+    }
+  });
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await choose(outer('Design')); await choose(inner('Components'));
+  await click(named('.editor-scope button', 'Global tokens'));
+
+  await check('stage2: default source, Generate isolation, stale warning and invalid seeds retain recipes', async () => {
+    assert.equal(await evaluate(`${q(sourceInput)}.value`), '#e8673c');
+    const before = await stored(), initial = await candidate();
+    await stage2Type(sourceInput, '#4361ee');
+    await wait(`document.querySelector('.editor-fields').textContent.includes('Source changed. Generate again')`);
+    assert.equal(await candidate(), initial);
+    await click(named('button', 'Generate palettes'));
+    assert.notEqual(await candidate(), initial);
+    assert.deepEqual(await stored(), before);
+    const generated = await candidate();
+    for (const invalid of ['', '#abc', '#gg0000', 'e8673c']) {
+      await stage2Type(sourceInput, invalid);
+      assert.equal(await evaluate(`(${named('button', 'Generate palettes')}).disabled && ${q(sourceInput)}.getAttribute('aria-invalid') === 'true'`), true);
+      assert.equal(await candidate(), generated);
+      assert.deepEqual(await stored(), before);
+    }
+    await stage2Type(sourceInput, '#4361ee');
+  });
+  await check('stage2: all presets generate without auto-applying', async () => {
+    const before = await stored();
+    for (const [name, hex] of [['Iris', '#7660d5'], ['Ocean', '#247db3'], ['Forest', '#287c60'], ['Graphite', '#27272a'], ['Terracotta', '#e8673c']]) {
+      const prior = await candidate();
+      await click(q(`[aria-label="Generate ${name} palette"]`));
+      await wait(`${q(sourceInput)}.value === '${hex}'`);
+      assert.notEqual(await candidate(), prior);
+      assert.deepEqual(await stored(), before);
+      assert.equal(await evaluate(`(${named('summary', 'Generated from ' + hex)}) != null`), true);
+    }
+  });
+  await check('stage2: prepare nondefault numeric globals, name and component overrides', async () => {
+    await stage2Type('[aria-label="Design system name"]', 'stage2 color review');
+    await stage2Type('#token-radius', '13');
+    await stage2Type('#token-controlHeightMd', '42');
+    await click(named('.editor-scope button', 'Component'));
+    await stage2Type('#token-background', '#123456');
+    await stage2Type('#token-foreground', '#fedcba');
+    await stage2Type('#token-paddingX', '23');
+    await click(named('.editor-scope button', 'Global tokens'));
+    const state = await stored();
+    assert.equal(state.global.radius, 13);
+    assert.equal(state.global.controlHeightMd, 42);
+    assert.deepEqual(state.components.button, { background: '#123456', foreground: '#fedcba', paddingX: 23 });
+  });
+  for (const mode of ['Light', 'Dark']) {
+    await check(`stage2: ${mode} Apply preserves metadata/numerics/overrides; computed recipes and CSS/JSON`, async () => {
+      const before = await stored(), generated = await candidate();
+      await openDetails(`${mode} role recipes & contrast`);
+      const roles = await evaluate(`(() => { const section=${q(recipe(mode))}; return [...section.querySelectorAll('h5')].map(h => { const e=h.parentElement; return {name:h.textContent.toLowerCase(), values:Object.fromEntries([...e.querySelectorAll('dl > div')].map(d => [d.querySelector('dt').textContent,d.querySelector('code').textContent])), pairs:[...e.querySelectorAll('span[style]')].map(s => ({label:s.textContent, ink:getComputedStyle(s).color, fill:getComputedStyle(s).backgroundColor}))}; }); })()`);
+      assert.equal(roles.length, 6);
+      for (const role of roles) {
+        for (const [i, state] of ['solid', 'hover', 'active', 'subtle'].entries()) {
+          const pair = role.pairs[i], ink = state === 'subtle' ? 'onSubtle' : 'onSolid';
+          assert.equal(pair.fill, rgb(role.values[state]));
+          assert.equal(pair.ink, rgb(role.values[ink]));
+          const ratio = contrast(pair.ink, pair.fill);
+          assert.ok(ratio >= 4.5, `${mode}/${role.name}/${state}: ${ratio}`);
+          assert.ok(pair.label.includes(`${(Math.floor(ratio * 100) / 100).toFixed(2)}:1`));
+        }
+      }
+      await click(named('button', `Apply ${mode.toLowerCase()} colors`));
+      const after = await stored();
+      assert.notDeepEqual(after.global, before.global);
+      assert.equal(after.name, before.name); assert.equal(after.version, before.version);
+      assert.deepEqual(after.components, before.components);
+      for (const [key, value] of Object.entries(before.global).filter(([, value]) => typeof value === 'number')) assert.equal(after.global[key], value, key);
+      assert.equal(Object.values(after.global).filter(value => typeof value === 'string').length, 17);
+      assert.equal(await candidate(), generated);
+      assert.equal(await evaluate(`${q(sourceInput)}.value`), '#e8673c');
+      await wait(`${q(recipe(mode))}.textContent.includes('Matches global colors')`);
+      const mini = await evaluate(`(() => { const e=${q(recipe(mode))}.querySelector('strong').parentElement; return {ink:getComputedStyle(e).color,fill:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderColor,muted:getComputedStyle(e.querySelector('p')).color,roles:[...e.querySelectorAll('span')].map(s=>({name:s.textContent.toLowerCase(),ink:getComputedStyle(s).color,fill:getComputedStyle(s).backgroundColor}))}; })()`);
+      assert.equal(mini.ink, rgb(after.global.foreground)); assert.equal(mini.fill, rgb(after.global.background));
+      assert.equal(mini.border, rgb(after.global.border)); assert.equal(mini.muted, rgb(after.global.mutedForeground));
+      for (const role of mini.roles) {
+        assert.equal(role.fill, rgb(after.global[role.name]));
+        assert.equal(role.ink, rgb(after.global['on' + role.name[0].toUpperCase() + role.name.slice(1)]));
+      }
+      await click(q('[aria-label="Export tokens"]'));
+      try {
+        await click(named('[aria-label="Export format"] button', 'JSON'));
+        assert.deepEqual(JSON.parse(await evaluate(`${q('[aria-label="Exported tokens"]')}.textContent`)), after);
+        await click(named('[aria-label="Export format"] button', 'CSS'));
+        const css = await evaluate(`${q('[aria-label="Exported tokens"]')}.textContent`);
+        for (const [key, value] of Object.entries(after.global)) {
+          const kebab = key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+          assert.ok(css.includes(`--ds-${kebab}: ${value}${typeof value === 'number' ? 'px' : ''};`), `CSS ${key}`);
+        }
+        assert.ok(css.includes('--button-background: #123456;'));
+        assert.ok(!css.includes('palette.source'));
+      } finally {
+        await click(q('[aria-label="Close export dialog"]'));
+        await wait(`!document.querySelector('.export-dialog') && !document.querySelector('.studio-backdrop')`, 'export dialog exit animation complete');
+      }
+      for (const view of ['Develop', 'Design']) {
+        await choose(outer(view));
+        await click(named('.editor-scope button', 'Component'));
+        await click(named('.editor-scope button', 'Global tokens'));
+        assert.equal(await evaluate(`${q(sourceInput)}.value`), '#e8673c');
+        assert.equal(await candidate(), generated);
+        assert.deepEqual(await stored(), after);
+      }
+      await click(q(`${recipe(mode)} h4`));
+      await capture(`${mode.toLowerCase()}-desktop`);
+    });
+  }
+  await check('stage2: manual global and component equal-color warnings match computed final pairs', async () => {
+    const primary = (await stored()).global.primary;
+    await stage2Type('#token-onPrimary', primary);
+    await wait(`${q('[data-contrast-check="global.onPrimary.primary"]')}?.textContent.includes('Below target: 1.00:1')`);
+    await click(named('.editor-scope button', 'Component'));
+    await stage2Type('#token-foreground', '#123456');
+    await wait(`${q('[data-contrast-check="button.foreground"]')}?.textContent.includes('Below target: 1.00:1')`);
+    const pair = await evaluate(computed(`${specimen} button[data-variant="primary"]`));
+    assert.equal(pair.background, rgb('#123456')); assert.equal(pair.foreground, pair.background);
+    assert.equal(await evaluate(`${q('[data-contrast-check="button.foreground"]')}.querySelector('code').textContent`), '#123456 on #123456');
+    await click(named('.editor-scope button', 'Global tokens'));
+  });
+  await check('stage2: current primary explicitly resyncs source and generates without applying', async () => {
+    const before = await stored();
+    await click(named('button', 'Use current primary'));
+    await wait(`${q(sourceInput)}.value === ${JSON.stringify(before.global.primary)}`);
+    assert.equal(await evaluate(`(${named('summary', 'Generated from ' + before.global.primary)}) != null`), true);
+    assert.deepEqual(await stored(), before);
+    await stage2Type(sourceInput, '#abcdef');
+    await wait(`document.querySelector('.editor-fields').textContent.includes('Source changed. Generate again')`);
+  });
+  await check('stage2: 375px expanded recipes and diagnostics have no page overflow', async () => {
+    await click(q('[aria-label="Generate Terracotta palette"]'));
+    await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
+    for (const mode of ['Light', 'Dark']) {
+      await click(named('button', `Apply ${mode.toLowerCase()} colors`));
+      await openDetails(`${mode} role recipes & contrast`);
+      const report = q('[aria-label="Current contrast checks"] details');
+      if (!await evaluate(`${report}.open`)) await click(`${report}.querySelector('summary')`);
+      for (const view of ['Develop', 'Design']) {
+        await choose(outer(view));
+        await wait('document.documentElement.scrollWidth <= 375 && document.body.scrollWidth <= 375', `${mode}/${view}: expanded builder and diagnostics overflow`);
+      }
+      await click(q(`${recipe(mode)} h4`));
+      await capture(`${mode.toLowerCase()}-mobile`);
+      await click(q('#token-primary'));
+      assert.equal(await evaluate(`document.activeElement === ${q('#token-primary')}`), true);
     }
   });
   await check('no browser console/runtime/resource errors', async () => {

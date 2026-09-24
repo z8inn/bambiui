@@ -8,6 +8,7 @@ import { Button, NavItem, SegmentedControl } from "./controls";
 import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
 import { DeveloperView } from "./developer";
+import { ColorBuilder, ContrastReport } from "./color-builder";
 import {
   componentIds,
   defaultSystem,
@@ -29,13 +30,7 @@ type Scope = "global" | "component";
 type View = "design" | "develop";
 type PreviewContext = "components" | "scenario";
 const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
-const presets = [
-  { name: "Terracotta", color: "#e8673c" },
-  { name: "Iris", color: "#7660d5" },
-  { name: "Ocean", color: "#247db3" },
-  { name: "Forest", color: "#287c60" },
-  { name: "Graphite", color: "#27272a" },
-];
+
 
 function isValidToken(field: TokenField, text: string) {
   if (field.type === "color") return /^#[\da-f]{6}$/i.test(text);
@@ -165,7 +160,7 @@ export default function Studio() {
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
   const [view, setView] = useState<View>("design");
-    const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
+  const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
   const [status, setStatus] = useState("Loading local draft…");
   const [notice, setNotice] = useState("");
   const [format, setFormat] = useState<"css" | "json">("css");
@@ -701,31 +696,18 @@ export default function Studio() {
                 : "Values inherit from global tokens until you change them. Reset to reconnect."}
             </p>
           </div>
-          {isGlobal && (
-            <div className="palette-presets">
-              <div className="section-heading">
-                <h3>Start with a color</h3>
-                <span>PRESETS</span>
-              </div>
-              <div className="flex gap-2">
-                {presets.map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    className="preset-swatch"
-                    aria-label={`${preset.name} primary color`}
-                    aria-pressed={system.global.primary === preset.color}
-                    style={{ background: preset.color }}
-                    onClick={() => setToken("primary", preset.color)}
-                  >
-                    {system.global.primary === preset.color && (
-                      <Icon name="check" size={16} />
-                    )}
-                  </button>
-                ))}
-              </div>
+          {ready && (
+            <div hidden={!isGlobal}>
+              <ColorBuilder
+                system={system}
+                onApply={(colors) => update({
+                  ...system,
+                  global: { ...system.global, ...colors },
+                })}
+              />
             </div>
           )}
+          <ContrastReport system={system} component={isGlobal ? undefined : component} />
           {(
             [
               {

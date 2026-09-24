@@ -20,25 +20,41 @@ A local-first design system playground built with Next.js, Tailwind CSS v4, and 
 
 Select a component in the sidebar to edit its tokens, or use **Global tokens** to change the shared foundations. Changes apply immediately. Color inputs accept six-digit hex values; numeric controls use pixels.
 
+## Color builder
+
+Open **Global tokens → Color builder**. Enter a six-digit brand color or choose a preset, then **Generate palettes**. Generation previews two recipes without changing your system. **Apply light colors** or **Apply dark colors** replaces the 17 global color tokens only; dimensions and component overrides stay intact. This does not switch the editor theme.
+
+The dependency-free engine uses OKLCH scales and reduces chroma to fit the sRGB gamut. Primary and neutral colors follow the source; success, warning, danger and info keep semantic green, amber, red and blue families. Source colors are kept separate from adjusted usage tones. Each recipe includes 12-step scales and solid, on-solid, hover, active, subtle, on-subtle, outline and focus roles.
+
+Generated recipes check normal text at 4.5:1 and boundaries/focus at 3:1 on their specified surfaces, using final hex colors. Raw scale stops do **not** guarantee arbitrary contrast pairs. The current-system report also checks modeled component mixes and enabled states, including overrides. It reports finite color pairs, **not full WCAG compliance**. Existing component interaction styles can still fail; integrating the generated interaction roles and completing accessibility verification is the next stage.
+
+The builder retains its source and recipes only while the page stays open. CSS/JSON studio exports keep the applied tokens, not both palettes or the source. Generate a separate reproducible recipe from the CLI when needed:
+
+```bash
+node --experimental-strip-types scripts/generate-palette.mjs '#e8673c'
+```
+
+The CLI writes `bambiui.color-recipe` version 1 JSON to stdout, including the original source and both palettes. It is **not** a studio backup and cannot be imported through the existing design-system importer. No network service or new package is used.
+
 ## Icons and social images
 
 The logo artwork lives in `app/studio/brand.ts`. The Apple touch icon, the web manifest icons, and the Open Graph and Twitter images are generated from it at build time. `app/icon.svg` (the output of `brandSvg()`) and `app/favicon.ico` (a 16/32/48 px render) are static files; regenerate them when the artwork changes.
 
 Social images need an absolute URL. Set `NEXT_PUBLIC_SITE_URL` to the production domain, for example `https://bambiui.com`. Cloudflare Pages builds fall back to the deployment URL (`CF_PAGES_URL`).
 
-## Token tests
+## Token and color tests
 
 Run with Node.js 22.6+ (Node.js 22.13+ recommended):
 
 ```bash
-node --experimental-strip-types --test app/studio/tokens.test.mjs
+node --experimental-strip-types --test app/studio/tokens.test.mjs app/studio/color-engine.test.mjs app/studio/color-audit.test.mjs
 ```
 
-The tests cover inheritance, component isolation, CSS export, JSON round-trips, and invalid import data.
+The tests cover inheritance, component isolation, CSS/JSON compatibility, invalid imports, deterministic palette generation, gamut and semantic hue preservation, contrast thresholds, modeled component mixes and CLI output.
 
 ## Studio smoke tests
 
-After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context state retention, token inheritance, preview colors, keyboard tabs and the narrow-screen layout. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
+After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context state retention, token inheritance, preview colors, keyboard tabs, palette generation/application, manual contrast warnings, CSS/JSON exports and the narrow-screen layout. Add `--screenshots` to capture light/dark palette previews in `.next/color-review/`. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
 
 See [docs/roadmap.md](docs/roadmap.md) for staged scope, validation results and remaining accessibility work.
 

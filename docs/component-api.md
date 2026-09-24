@@ -91,7 +91,7 @@ Current components:
   - View switchers use Tabs.
   - Navigation lists use `aria-current`.
 - Do not convey information with color alone. Status dots get text or a visually hidden label.
-- Default tokens meet WCAG AA: 4.5:1 for text and 3:1 for UI boundaries. Tone text on tinted surfaces is darkened with `--ds-tone-text-mix` to keep that contrast.
+- Accessibility target: 4.5:1 for normal text and 3:1 where UI-boundary contrast is required. `color-engine.ts` verifies generated recipe pairs on their specified surfaces. Legacy defaults and current component states do not all meet this target yet; the color inspector reports modeled failures. Do not claim full compliance from a passing palette. Tone text on tinted surfaces currently mixes toward the global foreground using `--ds-tone-text-mix`; verify the resulting pair, especially with overrides.
 - Respect `prefers-reduced-motion`.
 
 ## 6. Checklist for a new component

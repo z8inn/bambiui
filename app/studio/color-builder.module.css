@@ -1,0 +1,236 @@
+.builder,
+.report {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding-block: 20px;
+  border-top: 1px solid var(--studio-color-border);
+  color: var(--studio-color-text);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.builder h3,
+.report h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.builder p,
+.report p {
+  color: var(--studio-color-text-secondary);
+  font-size: 11px;
+}
+
+.builder label {
+  font-weight: 500;
+}
+
+.sourceInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #71717a;
+  border-radius: 7px;
+  background: var(--studio-color-surface);
+}
+
+.sourceInput input[type="color"] {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.sourceInput input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.sourceInput:has([aria-invalid="true"]) {
+  border-color: #b91c1c;
+}
+
+.sourceInput input:focus-visible,
+.details summary:focus-visible,
+.checks:focus-visible,
+.builder button:focus-visible {
+  outline: 2px solid var(--studio-color-text);
+  outline-offset: 3px;
+}
+
+.presets,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presets button {
+  height: auto;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.presets button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 1px solid #71717a;
+  border-radius: 4px;
+}
+
+.actions button {
+  flex: 1 1 auto;
+  min-height: 36px;
+  height: auto;
+  white-space: normal;
+}
+
+.feedback:empty {
+  display: none;
+}
+
+.details {
+  min-width: 0;
+}
+
+.details > summary {
+  padding-block: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.details > p {
+  margin-block: 8px;
+}
+
+.details .warning {
+  padding: 8px;
+  border-left: 3px solid #92400e;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.recipe {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.recipe + .recipe {
+  border-top: 1px solid var(--studio-color-border);
+}
+
+.recipeHeading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.recipe h4,
+.scale h4,
+.roleRecipe h5 {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.match {
+  color: #166534;
+  font-size: 10px;
+}
+
+.sample {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid;
+  border-radius: 8px;
+}
+
+.roleSamples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleSamples > span {
+  padding: 4px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.roleRecipe {
+  display: grid;
+  gap: 8px;
+  padding-block: 12px;
+  border-top: 1px solid var(--studio-color-border);
+}
+
+.values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  font-size: 10px;
+}
+
+.values dt {
+  color: var(--studio-color-text-secondary);
+}
+
+.scale {
+  margin-top: 12px;
+}
+
+.scale ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  list-style: none;
+}
+
+.scale li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+}
+
+.checks {
+  display: grid;
+  gap: 12px;
+  max-height: 360px;
+  overflow: auto;
+  list-style: none;
+}
+
+.checks li {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--studio-color-border-strong);
+  border-radius: 6px;
+  background: var(--studio-color-surface);
+  font-size: 11px;
+}
+
+.checks strong {
+  font-weight: 500;
+}
+
+.checks code {
+  font-size: 10px;
+}

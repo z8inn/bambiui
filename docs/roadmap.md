@@ -25,7 +25,7 @@ UI copy remains English until the localization stage. Editor appearance stays in
 
 This is functional acceptance, not a complete visual or accessibility audit. Default palette contrast, unchecked control contrast, component variant color calculations and broader screen-reader/zoom testing remain for stages 2–3. Sidebar selection changes may recreate the selected specimen; switching view or context does not.
 
-## 2. Accessible color generation — next
+## 2. Accessible color generation — implemented
 
 - Deterministic color engine separate from UI, using perceptual color scales.
 - Preserve the input brand color; derive accessible usage tones rather than silently treating every brand input as safe.
@@ -35,7 +35,22 @@ This is functional acceptance, not a complete visual or accessibility audit. Def
 - Allow manual edits with explicit contrast warnings.
 - Gate: boundary-input tests, deterministic outputs, contrast tests and visual palette review.
 
-## 3. Themes and component accessibility — planned
+### Implementation and validation
+
+- `color-engine.ts`: dependency-free OKLCH generation with chroma-reduction gamut mapping, 12-step primary/secondary/neutral/semantic scales, and both light/dark recipes. Source remains separate from usage tones; semantic hues remain stable.
+- `color-builder.tsx`: generation is separate from application. Apply merges only 17 global colors, preserving numeric tokens, component overrides, name and schema. Source/recipes remain mounted across scope/view changes, but are not persisted after reload.
+- `color-audit.ts`: finite current-CSS checks, including manual overrides, badge/card mixes, button brightness and enabled unchecked grayscale/opacity. Ratios are not rounded before pass/fail. The report is not certification.
+- CLI: `node --experimental-strip-types scripts/generate-palette.mjs '#e8673c'` emits a source-preserving `bambiui.color-recipe` v1 JSON artifact. It is intentionally distinct from the existing studio backup format.
+- Unit coverage: 43 token tests, 22 engine/integration/CLI tests and 9 current-color audit tests.
+- Browser coverage: 18 smoke checks, including the original workspace checks plus Generate/Apply isolation, invalid/stale sources, presets, source retention/resync, applied color preservation, live warnings, exports, computed recipe contrast and 375px expanded layout.
+- Light/dark desktop/mobile screenshots reviewed. Independent numerical review additionally swept 4,096 deterministic seeds without generation failures, on-color contrast failures or adjacent state-color collisions.
+- No dependencies or design-system schema changes. Explicit TypeScript extension imports are enabled under `noEmit` for native Node tests and CLI execution.
+
+### Next-stage boundary
+
+Applying a palette is not yet a persistent multi-theme switch. Generated hover/active/subtle/focus recipes are inspectable, but current components still use their existing CSS constants and mixes. Legacy defaults remain unchanged, and current unchecked controls can still fail contrast. Stage 3 must integrate the roles, address these component failures, and complete keyboard/screen-reader/zoom checks. Passing generated recipes does not imply arbitrary combinations or the entire application meet WCAG.
+
+## 3. Themes and component accessibility — next
 
 - Separate editor light/dark/system preference from design preview light/dark/comparison.
 - Integrate generated role tokens; fix variant surface calculations and token bypasses.
