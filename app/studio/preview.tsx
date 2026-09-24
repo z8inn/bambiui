@@ -2,11 +2,11 @@
 
 import {
   useId,
-  useMemo,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { Tabs } from "@base-ui/react/tabs";
 import {
   Badge,
   Button,
@@ -15,10 +15,9 @@ import {
   Input,
   Switch,
 } from "./components";
-import { Tabs } from "@base-ui/react/tabs";
-import { highlight } from "sugar-high";
+
 import { Icon } from "./icons";
-import { snippets } from "./snippets";
+
 import {
   componentIds,
   toCSSVariables,
@@ -377,45 +376,6 @@ function WorkspaceSettings() {
   );
 }
 
-function CodeBlock({ name, code }: { name: string; code: string }) {
-  const [copyStatus, setCopyStatus] = useState("");
-  // sugar-high escapes the source and only emits token <span>s.
-  const html = useMemo(() => highlight(code), [code]);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopyStatus("Copied");
-    } catch {
-      setCopyStatus("Copy failed");
-    }
-  }
-
-  return (
-    <div className={styles.codeBlock}>
-      <div className={styles.codeActions}>
-        {/* The button label shows the result; announce it for screen readers too. */}
-        <span role="status" className={styles.srOnly}>
-          {copyStatus}
-        </span>
-        <button
-          type="button"
-          className={styles.copyButton}
-          aria-label={`Copy ${name} code`}
-          onClick={copy}
-          onBlur={() => setCopyStatus("")}
-        >
-          <Icon name={copyStatus === "Copied" ? "check" : "copy"} size={13} />
-          {copyStatus === "Copied" ? "Copied" : "Copy"}
-        </button>
-      </div>
-      {/* The scroll container is the tab stop so arrow keys scroll the code. */}
-      <pre className={styles.code} tabIndex={0} aria-label={`${name} React code`}>
-        <code dangerouslySetInnerHTML={{ __html: html }} />
-      </pre>
-    </div>
-  );
-}
 
 function Showcase({
   id,
@@ -428,54 +388,19 @@ function Showcase({
 }) {
   const { name, description } = componentMeta[id];
 
-  if (!expanded)
-    return (
-      <section className={styles.showcase} aria-label={`${name} preview`}>
-        <header className={styles.showcaseHeader}>
-          <h3>{name}</h3>
-          <span className={styles.showcaseBadge}>{badge}</span>
-        </header>
-        <div className={styles.specimen}>
-          <Specimen id={id} expanded={false} />
-        </div>
-        <p className={styles.showcaseCaption}>{description}</p>
-      </section>
-    );
-
   return (
     <section className={styles.showcase} aria-label={`${name} preview`}>
-      <Tabs.Root defaultValue="preview">
-        <header className={styles.showcaseHeader}>
-          <h3>{name}</h3>
-          <Tabs.List
-            className={styles.showcaseTabs}
-            aria-label={`${name} example view`}
-          >
-            <Tabs.Tab value="preview" className={styles.showcaseTab}>
-              <Icon name="grid" size={13} />
-              Preview
-            </Tabs.Tab>
-            <Tabs.Tab value="code" className={styles.showcaseTab}>
-              <Icon name="code" size={13} />
-              React
-            </Tabs.Tab>
-            <Tabs.Indicator className={styles.showcaseTabIndicator} />
-          </Tabs.List>
-        </header>
-        {/* Keep the preview mounted so demo state survives a look at the code. */}
-        <Tabs.Panel
-          value="preview"
-          keepMounted
-          className={`${styles.specimen} ${styles.expanded}`}
-        >
-          <Specimen id={id} expanded />
-        </Tabs.Panel>
-        <Tabs.Panel value="code" className={styles.codePanel} tabIndex={-1}>
-          <CodeBlock name={name} code={snippets[id]} />
-        </Tabs.Panel>
-      </Tabs.Root>
+      <header className={styles.showcaseHeader}>
+        <h3>{name}</h3>
+        <span className={styles.showcaseBadge}>{badge}</span>
+      </header>
+      <div className={`${styles.specimen} ${expanded ? styles.expanded : ""}`}>
+        <Specimen id={id} expanded={expanded} />
+      </div>
       <p className={styles.showcaseCaption}>
-        Live states · Try the controls to see how they feel.
+        {expanded
+          ? "Live states · Try the controls to see how they feel."
+          : description}
       </p>
     </section>
   );
@@ -486,18 +411,25 @@ export function Preview({
   system,
   compact,
 }: {
+
   selected: "overview" | ComponentId;
   system: DesignSystem;
   compact: boolean;
 }) {
   const titleId = useId();
+  const scenarioTitleId = useId();
   const overview = selected === "overview";
   return (
     <div
       className={`${styles.preview} ${compact ? styles.compact : ""}`}
       style={toCSSVariables(system) as CSSProperties}
     >
-      <section aria-labelledby={titleId}>
+      {/* Hide rather than unmount so context changes preserve demo state. */}
+      <Tabs.Panel
+        value="components"
+        keepMounted
+        className={styles.contextPanel}
+      >
         <div className={styles.previewHeading}>
           <div>
             <p className={styles.eyebrow}>YOUR SYSTEM, IN ACTION</p>
@@ -516,7 +448,7 @@ export function Preview({
             <span /> Live preview
           </span>
         </div>
-        <div className={overview ? styles.grid : styles.isolated}>
+        <div className={overview ? styles.grid : undefined}>
           {(overview ? componentIds : [selected as ComponentId]).map(
             (id, index) => (
               <Showcase
@@ -532,8 +464,27 @@ export function Preview({
             ),
           )}
         </div>
-      </section>
-      <WorkspaceSettings />
+      </Tabs.Panel>
+      <Tabs.Panel
+        value="scenario"
+        keepMounted
+        className={styles.contextPanel}
+      >
+        <div className={styles.previewHeading}>
+          <div>
+            <p className={styles.eyebrow}>YOUR SYSTEM, IN CONTEXT</p>
+            <h2 id={scenarioTitleId}>One system. A real workspace.</h2>
+            <p className={styles.intro}>
+              All six components share your tokens here, even when the inspector
+              is focused on a selected component.
+            </p>
+          </div>
+          <span className={styles.liveIndicator}>
+            <span /> Live preview
+          </span>
+        </div>
+        <WorkspaceSettings />
+      </Tabs.Panel>
       <p className={styles.previewFootnote}>
         Built from the same tokens. Designed to belong together.
       </p>

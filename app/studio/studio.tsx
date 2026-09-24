@@ -7,6 +7,7 @@ import { Tabs } from "@base-ui/react/tabs";
 import { Button, NavItem, SegmentedControl } from "./controls";
 import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
+import { DeveloperView } from "./developer";
 import {
   componentIds,
   defaultSystem,
@@ -25,7 +26,8 @@ import {
 
 type Selection = "overview" | ComponentId;
 type Scope = "global" | "component";
-type View = "preview" | "code";
+type View = "design" | "develop";
+type PreviewContext = "components" | "scenario";
 const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 const presets = [
   { name: "Terracotta", color: "#e8673c" },
@@ -162,7 +164,8 @@ export default function Studio() {
   const [scope, setScope] = useState<Scope>("global");
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
-  const [view, setView] = useState<View>("preview");
+  const [view, setView] = useState<View>("design");
+    const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
   const [status, setStatus] = useState("Loading local draft…");
   const [notice, setNotice] = useState("");
   const [format, setFormat] = useState<"css" | "json">("css");
@@ -271,7 +274,7 @@ export default function Studio() {
   return (
     <div className="studio-shell">
       <a className="skip-link" href="#workspace">
-        Skip to preview
+        Skip to workspace
       </a>
       <header className="studio-header">
         <Link href="/" className="brand" aria-label="bambiui home">
@@ -551,16 +554,16 @@ export default function Studio() {
         >
           <div className="preview-toolbar">
             <Tabs.List className="view-switch" aria-label="Workspace view">
-              <Tabs.Tab value="preview">
+              <Tabs.Tab value="design">
                 <Icon name="grid" size={14} />
-                Preview
+                Design
               </Tabs.Tab>
-              <Tabs.Tab value="code">
+              <Tabs.Tab value="develop">
                 <Icon name="code" size={15} />
-                Tokens
+                Develop
               </Tabs.Tab>
             </Tabs.List>
-            <div className="flex items-center gap-3">
+            <div className="preview-width-controls" hidden={view !== "design"}>
               <span className="viewport-label">
                 {compact ? "375 px" : "Responsive"}
               </span>
@@ -592,34 +595,44 @@ export default function Studio() {
                 </Button>
               </div>
             )}
-            <Tabs.Panel value="preview">
-              <div className={`preview-frame ${compact ? "compact" : ""}`}>
-                <div className="canvas-label">
-                  <span>
-                    {selection === "overview"
-                      ? "COMPONENT COLLECTION"
-                      : `${selection.toUpperCase()} EXPLORER`}
-                  </span>
-                  <span>
-                    {selection === "overview" ? "01 — 06" : "INTERACTIVE"}
-                  </span>
+            <Tabs.Panel value="design" keepMounted className="workspace-panel">
+              <Tabs.Root
+                value={previewContext}
+                onValueChange={(next) => setPreviewContext(next as PreviewContext)}
+                className="preview-context"
+              >
+                <div className="context-toolbar">
+                  <Tabs.List className="context-switch" aria-label="Design preview context">
+                    <Tabs.Tab value="components">Components</Tabs.Tab>
+                    <Tabs.Tab value="scenario">Scenario</Tabs.Tab>
+                  </Tabs.List>
+                  <p>Compare the details or try the whole system.</p>
                 </div>
-                <Preview
-                  selected={selection}
-                  system={system}
-                  compact={compact}
-                />
-              </div>
+                <div className={`preview-frame ${compact ? "compact" : ""}`}>
+                  <div className="canvas-label">
+                    <span>
+                      {previewContext === "scenario"
+                        ? "WORKSPACE SCENARIO"
+                        : selection === "overview"
+                          ? "COMPONENT COLLECTION"
+                          : `${selection.toUpperCase()} EXPLORER`}
+                    </span>
+                    <span>
+                      {previewContext === "components" && selection === "overview"
+                        ? "01 — 06"
+                        : "INTERACTIVE"}
+                    </span>
+                  </div>
+                  <Preview
+                    selected={selection}
+                    system={system}
+                    compact={compact}
+                  />
+                </div>
+              </Tabs.Root>
             </Tabs.Panel>
-            <Tabs.Panel value="code" className="tokens-code">
-              <h2>One source of truth.</h2>
-              <p>
-                Global foundations and component aliases, as CSS custom
-                properties.
-              </p>
-              <pre tabIndex={0} aria-label="Live CSS tokens">
-                <code>{exportCSS(system)}</code>
-              </pre>
+            <Tabs.Panel value="develop" keepMounted className="workspace-panel">
+              <DeveloperView selected={selection} system={system} />
             </Tabs.Panel>
             <div className="canvas-footnote">
               <Icon name="link" size={13} />
