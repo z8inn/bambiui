@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Dialog } from "@base-ui/react/dialog";
-import { Tabs } from "@base-ui/react/tabs";
+import { usePathname } from "next/navigation";
 import { Button, NavItem, SegmentedControl } from "./controls";
 import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
@@ -31,6 +31,11 @@ import {
 type Selection = "overview" | ComponentId;
 type Scope = "global" | "component";
 type View = "design" | "develop";
+
+function workspaceHref(view: View, selection: Selection) {
+  const prefix = view === "develop" ? "/develop" : "";
+  return `${prefix}${selection === "overview" ? "" : `/${selection}`}` || "/";
+}
 
 function isValidToken(field: TokenField, text: string) {
   if (field.type === "color") return /^#[\da-f]{6}$/i.test(text);
@@ -157,11 +162,23 @@ export default function Studio() {
   const [system, setSystem] = useState<DesignSystem>(defaultSystem);
   const [ready, setReady] = useState(false);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
-  const [selection, setSelection] = useState<Selection>("overview");
-  const [scope, setScope] = useState<Scope>("global");
+  const pathname = usePathname();
+  const segments = pathname.split("/").filter(Boolean);
+  const view: View = segments[0] === "develop" ? "develop" : "design";
+  const routeComponent = segments[view === "develop" ? 1 : 0];
+  const selection: Selection = componentIds.find((id) => id === routeComponent) ?? "overview";
+  const defaultScope: Scope = selection === "overview" ? "global" : "component";
+  const [scopeState, setScopeState] = useState({ pathname, scope: defaultScope });
+  if (scopeState.pathname !== pathname) {
+    setScopeState({ pathname, scope: defaultScope });
+  }
+  const scope = scopeState.pathname === pathname ? scopeState.scope : defaultScope;
+  function setScope(scope: Scope) {
+    setScopeState({ pathname, scope });
+  }
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
-  const [view, setView] = useState<View>("design");
+
   const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
 
   const [status, setStatus] = useState<"loading" | "saved" | "draft" | "unsaved">("loading");
@@ -202,10 +219,6 @@ export default function Studio() {
     }
   }
 
-  function select(next: Selection) {
-    setSelection(next);
-    setScope(next === "overview" ? "global" : "component");
-  }
 
   const theme = system.themes[activeTheme];
   const previewColors = {
@@ -274,7 +287,7 @@ export default function Studio() {
   }
 
   return (
-    <div className="studio-shell">
+    <div className="studio-shell" data-view={view}>
       <a className="skip-link" href="#workspace">
         {t.skip}
       </a>
@@ -427,7 +440,7 @@ export default function Studio() {
         <NavItem
           icon={<Icon name="grid" />}
           current={selection === "overview"}
-          onClick={() => select("overview")}
+          href={workspaceHref(view, "overview")}
         >
           {t.overview}
         </NavItem>
@@ -464,7 +477,7 @@ export default function Studio() {
                     </>
                   )
                 }
-                onClick={() => select(id)}
+                href={workspaceHref(view, id)}
               >
                 {t.componentNames[id]}
               </NavItem>
@@ -489,34 +502,30 @@ export default function Studio() {
         </div>
       </aside>
 
-      <main className="studio-main" id="workspace" tabIndex={-1}>
+      <main className={`studio-main studio-main--${view}`} id="workspace" tabIndex={-1}>
         <div className="workspace-heading">
           <div className="breadcrumbs">
             {t.workspace}<Icon name="chevron" size={11} />
             <span>{selection === "overview" ? t.overview : t.componentNames[selection]}</span>
           </div>
           <div>
-            <h1>{selection === "overview" ? t.overviewTitle : t.componentTitle(t.componentNames[selection])}</h1>
-            <p>{selection === "overview" ? t.overviewIntro : t.componentIntro}</p>
-            <a className="mobile-editor-link" href="#token-editor">{t.jumpToTokens} <Icon name="arrow" size={12} /></a>
+            <h1>{view === "develop" ? (selection === "overview" ? "Token reference" : `${t.componentNames[selection]} documentation`) : selection === "overview" ? t.overviewTitle : t.componentTitle(t.componentNames[selection])}</h1>
+            <p>{view === "develop" ? "React usage, props and resolved theme tokens for your design system." : selection === "overview" ? t.overviewIntro : t.componentIntro}</p>
+            {view === "design" && <a className="mobile-editor-link" href="#token-editor">{t.jumpToTokens} <Icon name="arrow" size={12} /></a>}
           </div>
         </div>
-        <Tabs.Root
-          className="workspace-tabs"
-          value={view}
-          onValueChange={(next) => setView(next as View)}
-        >
+        <div className="workspace-tabs workspace-views">
           <div className="preview-toolbar">
-              <Tabs.List className="view-switch" aria-label={t.workspaceView}>
-                <Tabs.Tab value="design">
+              <nav className="view-switch" aria-label={t.workspaceView}>
+                <Link href={workspaceHref("design", selection)} aria-current={view === "design" ? "page" : undefined} data-active={view === "design" || undefined}>
                   <Icon name="grid" size={14} />
                   {t.design}
-                </Tabs.Tab>
-                <Tabs.Tab value="develop">
+                </Link>
+                <Link href={workspaceHref("develop", selection)} aria-current={view === "develop" ? "page" : undefined} data-active={view === "develop" || undefined}>
                   <Icon name="code" size={15} />
                   {t.develop}
-                </Tabs.Tab>
-              </Tabs.List>
+                </Link>
+              </nav>
               <div className="preview-width-controls">
                 <div className="viewport-controls" hidden={view !== "design"}>
                   <span className="viewport-label">{compact ? t.mobile : t.responsive}</span>
@@ -540,7 +549,7 @@ export default function Studio() {
               </div>
           </div>
           <div
-            className="preview-canvas"
+            className={`workspace-content workspace-content--${view}`}
             id="workspace-content"
             tabIndex={-1}
             data-design={view === "design" || undefined}
@@ -559,25 +568,26 @@ export default function Studio() {
                 </Button>
               </div>
             )}
-            <Tabs.Panel value="design" keepMounted className="workspace-panel">
+            <section hidden={view !== "design"} aria-label={t.design} className="workspace-panel workspace-panel--design preview-canvas">
               <div className={`preview-frame ${compact ? "compact" : ""}`}>
                 <div className="canvas-label">
                   <span>{selection === "overview" ? t.collection : t.explorer(t.componentNames[selection])}</span>
                   <span>{selection === "overview" ? "01 — 06" : t.interactive}</span>
                 </div>
-                <Preview selected={selection} system={system} compact={compact} mode={activeTheme} />
+                <Preview selected={selection} system={system} compact={compact} mode={activeTheme} active={view === "design"} />
               </div>
-            </Tabs.Panel>
-            <Tabs.Panel value="develop" keepMounted className="workspace-panel">
+            </section>
+            <section hidden={view !== "develop"} aria-label={t.develop} className="workspace-panel workspace-panel--develop">
               <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} />
-            </Tabs.Panel>
+            </section>
           </div>
-        </Tabs.Root>
+        </div>
 
       </main>
 
       <aside
         className="token-editor"
+        hidden={view !== "design"}
         id="token-editor"
         tabIndex={-1}
         aria-label={t.editor}

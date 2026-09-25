@@ -344,12 +344,12 @@ button:disabled {
 .nav-item:hover {
   background: var(--studio-color-surface-hover);
 }
-.nav-item[aria-current="true"] {
+.nav-item[aria-current="page"] {
   background: var(--studio-color-accent-subtle);
   color: var(--studio-color-accent-text);
   font-weight: 500;
 }
-.nav-item[aria-current="true"] > svg {
+.nav-item[aria-current="page"] > svg {
   color: var(--studio-color-accent-muted);
 }
 .nav-end {
@@ -498,7 +498,7 @@ button:disabled {
   align-self: stretch;
   gap: 20px;
 }
-.view-switch [role="tab"] {
+.view-switch a {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -523,13 +523,31 @@ button:disabled {
   gap: 12px;
 }
 .viewport-controls[hidden],
-.workspace-panel[hidden] {
+.workspace-panel[hidden],
+.token-editor[hidden] {
   display: none;
 }
 .workspace-panel {
   min-width: 0;
 }
-.view-switch [role="tab"]:focus-visible {
+.workspace-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.studio-main--develop {
+  grid-column: 2 / -1;
+}
+.studio-main--develop .workspace-heading,
+.studio-main--develop .preview-toolbar {
+  padding-inline: clamp(16px, 3vw, 40px);
+}
+@media (max-width: 900px) {
+  .studio-main--develop {
+    grid-column: 1 / -1;
+  }
+}
+.view-switch a:focus-visible {
   outline: 2px solid var(--studio-color-text);
   outline-offset: 2px;
 }
@@ -573,13 +591,13 @@ button:disabled {
   scrollbar-width: thin;
   scrollbar-color: var(--studio-color-border-strong) transparent;
 }
-.preview-canvas[data-design] {
+.workspace-content[data-design] .preview-canvas {
   background-color: var(--preview-background);
   background-image: radial-gradient(var(--preview-grid-dot) 1px, transparent 1px);
   background-size: 16px 16px;
   color: var(--preview-foreground);
 }
-.preview-canvas[data-design] .canvas-label {
+.workspace-content[data-design] .canvas-label {
   color: var(--preview-foreground);
 }
 .preview-frame {

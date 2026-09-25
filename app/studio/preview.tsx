@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Badge,
   Button,
@@ -269,7 +269,7 @@ function Showcase({
   const { name } = copy.components[id];
 
   return (
-    <section className={styles.showcase} aria-label={copy.showcase.preview(name)}>
+    <section className={styles.showcase} data-specimen={id} aria-label={copy.showcase.preview(name)}>
       <header className={styles.showcaseHeader}>
         <h2>{name}</h2>
       </header>
@@ -281,17 +281,17 @@ function Showcase({
   );
 }
 
-function ThemePane({ theme, mode, activeMode, compact, children, copy }: {
+function ThemePane({ theme, mode, compact, children, copy }: {
   theme: ThemeTokens;
   mode: PaletteMode;
-  activeMode: PaletteMode;
+
   compact: boolean;
   children: ReactNode;
   copy: PreviewCopy;
 }) {
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
   return (
-    <section className="theme-pane" hidden={mode !== activeMode} aria-label={copy.theme.preview(copy.modes[mode])}>
+    <section className="theme-pane" aria-label={copy.theme.preview(copy.modes[mode])}>
       <div
         className={`${styles.preview} ${compact ? styles.compact : ""}`}
         data-ds-theme={mode}
@@ -303,26 +303,147 @@ function ThemePane({ theme, mode, activeMode, compact, children, copy }: {
   );
 }
 
-export function Preview({ selected, system, compact, mode }: {
+export function Preview({ selected, system, compact, mode, active = true }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   compact: boolean;
   mode: PaletteMode;
+  active?: boolean;
 }) {
   const copy = previewCopy;
-  const overview = selected === "overview";
+  const helpId = useId();
+  const viewport = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [size, setSize] = useState({ width: 960, height: 1600 });
+
+  const naturalLayout = () => compact || window.matchMedia("(max-width: 760px)").matches;
+
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      setSize({ width: element.offsetWidth, height: element.offsetHeight });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const frame = requestAnimationFrame(() => {
+      const view = viewport.current;
+      const target = selected === "overview"
+        ? canvas.current
+        : canvas.current?.querySelector<HTMLElement>(`[data-specimen="${selected}"]`);
+      if (!view || !target || !view.clientWidth) return;
+      if (compact || window.matchMedia("(max-width: 760px)").matches) {
+        if (selected !== "overview") target.scrollIntoView({ block: "center", behavior: "instant" });
+      } else if (selected === "overview") {
+        setZoom(Math.min(1, Math.max(0.25, Math.min(
+          (view.clientWidth - 32) / target.offsetWidth,
+          (view.clientHeight - 32) / target.offsetHeight,
+        ))));
+        view.scrollTo({ left: 0, top: 0, behavior: "instant" });
+      } else {
+        const bounds = target.getBoundingClientRect();
+        const box = view.getBoundingClientRect();
+        view.scrollTo({
+          left: view.scrollLeft + bounds.left - box.left + bounds.width / 2 - view.clientWidth / 2,
+          top: view.scrollTop + bounds.top - box.top + bounds.height / 2 - view.clientHeight / 2,
+          behavior: "instant",
+        });
+      }
+      if (selected !== "overview") {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const highlight = { outline: "2px solid var(--ds-foreground)", outlineOffset: "4px" };
+        target.animate(reducedMotion ? [highlight, highlight] : [
+          { outline: "2px solid transparent", outlineOffset: "4px" },
+          { ...highlight, offset: 0.2 },
+          { outline: "2px solid transparent", outlineOffset: "4px" },
+        ], { duration: 1400 });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected, active, compact]);
+
+  function changeZoom(next: number) {
+    const view = viewport.current;
+    if (!view || naturalLayout()) return;
+    const value = Math.min(2, Math.max(0.25, next));
+    const x = (view.scrollLeft + view.clientWidth / 2) / zoom;
+    const y = (view.scrollTop + view.clientHeight / 2) / zoom;
+    setZoom(value);
+    requestAnimationFrame(() => view.scrollTo({
+      left: x * value - view.clientWidth / 2,
+      top: y * value - view.clientHeight / 2,
+      behavior: "instant",
+    }));
+  }
+
+  function fit() {
+    const view = viewport.current;
+    if (!view) return;
+    changeZoom(Math.min((view.clientWidth - 32) / size.width, (view.clientHeight - 32) / size.height, 1));
+  }
+
   return (
-    <>
-      {/* Both previews stay mounted so theme changes retain interactive specimen state. */}
-      {(["light", "dark"] as const).map((item) => (
-        <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode} compact={compact} copy={copy}>
-          <div className={overview ? styles.grid : undefined}>
-            {(overview ? componentIds : [selected as ComponentId]).map((id) => (
-              <Showcase key={id} id={id} expanded={!overview} copy={copy} />
-            ))}
+    <ThemePane theme={system.themes[mode]} mode={mode} compact={compact} copy={copy}>
+      <div className={styles.canvasControls} role="group" aria-label="Canvas zoom">
+        <button type="button" onClick={() => changeZoom(zoom - 0.1)} disabled={zoom <= 0.25} aria-label="Zoom out">−</button>
+        <output aria-live="polite" aria-label="Zoom level">{Math.round(zoom * 100)}%</output>
+        <button type="button" onClick={() => changeZoom(zoom + 0.1)} disabled={zoom >= 2} aria-label="Zoom in">+</button>
+        <button type="button" onClick={fit}>Fit</button>
+        <button type="button" onClick={() => changeZoom(1)}>Reset zoom</button>
+      </div>
+      <p id={helpId} className={styles.srOnly}>Scroll to explore all six components. On desktop, drag empty background to pan, or focus the canvas and use arrow keys. Use the zoom buttons to fit or resize the canvas.</p>
+      <div
+        ref={viewport}
+        className={styles.viewport}
+        tabIndex={0}
+        role="region"
+        aria-label="Component canvas"
+        aria-describedby={helpId}
+        onPointerDown={(event) => {
+          if (naturalLayout() || event.button !== 0 || event.pointerType === "touch" || !(event.target instanceof Element)) return;
+          // Specimen content is never a drag handle, including labels and selectable text.
+          if (event.target.closest("[data-specimen]")) return;
+          const view = event.currentTarget;
+          drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: view.scrollLeft, top: view.scrollTop };
+          view.setPointerCapture(event.pointerId);
+          view.dataset.dragging = "true";
+          view.focus({ preventScroll: true });
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          const start = drag.current;
+          if (!start || start.id !== event.pointerId) return;
+          event.currentTarget.scrollLeft = start.left - (event.clientX - start.x);
+          event.currentTarget.scrollTop = start.top - (event.clientY - start.y);
+        }}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          drag.current = null;
+          delete event.currentTarget.dataset.dragging;
+        }}
+        onPointerCancel={(event) => {
+          drag.current = null;
+          delete event.currentTarget.dataset.dragging;
+        }}
+        onLostPointerCapture={(event) => {
+          drag.current = null;
+          delete event.currentTarget.dataset.dragging;
+        }}
+      >
+        <div className={styles.canvasExtent} style={{ width: size.width * zoom, height: size.height * zoom }}>
+          <div ref={canvas} className={styles.canvas} style={{ transform: `scale(${zoom})` }}>
+            <div className={styles.grid}>
+              {componentIds.map((id) => <Showcase key={id} id={id} expanded copy={copy} />)}
+            </div>
           </div>
-        </ThemePane>
-      ))}
-    </>
+        </div>
+      </div>
+    </ThemePane>
   );
 }

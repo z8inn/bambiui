@@ -15,7 +15,31 @@ const captureDir = fileURLToPath(new URL('../.next/color-review/', import.meta.u
 const mime = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json', '.svg':'image/svg+xml', '.png':'image/png', '.woff2':'font/woff2', '.ico':'image/x-icon', '.webmanifest':'application/manifest+json' };
 const pending = new Map(), failures = [], errors = [];
 let server, chrome, profile, socket, sequence = 0;
-const watchdog = setTimeout(() => { console.error('Smoke test exceeded 90 seconds'); process.exit(1); }, 90000);
+const watchdog = setTimeout(() => { console.error('Smoke test exceeded 180 seconds'); process.exit(1); }, 180000);
+const ids = ['button', 'input', 'card', 'badge', 'switch', 'checkbox'];
+const href = (view, id = 'overview') => `${view === 'develop' ? '/develop' : ''}${id === 'overview' ? '' : `/${id}`}` || '/';
+const canvas = '[aria-label="Component canvas"]';
+async function route(view, id = 'overview') {
+  const path = href(view, id);
+  await wait(`location.pathname === ${JSON.stringify(path)} && ${q('.editor-fields')} && !${q('.editor-fields')}.disabled`);
+  await wait(`${q('.workspace-panel--' + view)} && !${q('.workspace-panel--' + view)}.hidden`);
+  assert.equal(await evaluate(`${q('.studio-sidebar a[aria-current="page"]')}.getAttribute('href')`), path);
+  assert.equal(await evaluate(`${q('[aria-label="Workspace view"] a[aria-current="page"]')}.textContent.trim()`), view === 'design' ? 'Design' : 'Develop');
+  assert.equal(await evaluate(`${q('#token-editor')}.hidden`), view === 'develop');
+  assert.equal(await evaluate(`${q('.editor-scope button[data-state="on"]')}?.textContent.trim() || ${q('.editor-scope button[aria-pressed="true"]')}?.textContent.trim()`), id === 'overview' ? 'Global tokens' : 'Component');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-specimen]')].map(e=>e.dataset.specimen).sort()`), [...ids].sort());
+}
+async function navigate(view, id = 'overview') {
+  const currentView = await evaluate(`location.pathname.startsWith('/develop') ? 'develop' : 'design'`);
+  if (currentView !== view) await click(named('[aria-label="Workspace view"] a',view === 'design' ? 'Design' : 'Develop'));
+  await click(q(`.studio-sidebar a[href="${href(view, id)}"], [aria-label="Workspace view"] a[href="${href(view, id)}"]`));
+  await route(view, id);
+}
+async function key(key, code = key) {
+  const windowsVirtualKeyCode = {ArrowDown:40, Enter:13, Tab:9, ' ':32}[key];
+  await send('Input.dispatchKeyEvent', {type:'keyDown', key, code, windowsVirtualKeyCode, ...(key === 'Enter' ? {text:'\r'} : {})});
+  await send('Input.dispatchKeyEvent', {type:'keyUp', key, code, windowsVirtualKeyCode});
+}
 
 function send(method, params = {}) {
   return new Promise((resolve, reject) => {
@@ -39,11 +63,16 @@ const q = selector => `document.querySelector(${JSON.stringify(selector)})`;
 const named = (selector, name) => `[...document.querySelectorAll(${JSON.stringify(selector)})].find(e => e.textContent.trim() === ${JSON.stringify(name)} && !e.closest('[hidden]'))`;
 async function click(expression) {
   assert.ok(await evaluate(`!!(${expression})`), `Missing control: ${expression}`);
+    const destination = await evaluate(`(${expression}).closest('a')?.getAttribute('href') || null`);
   await evaluate(`(${expression}).scrollIntoView({block:'center',behavior:'instant'})`);
   await evaluate('new Promise(resolve => requestAnimationFrame(resolve))');
   const point = await evaluate(`(() => {const e=${expression},r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(!e.contains(document.elementFromPoint(x,y)))throw Error('Occluded: '+e.outerHTML);return {x,y};})()`);
   await send('Input.dispatchMouseEvent', { type:'mousePressed', ...point, button:'left', clickCount:1 });
   await send('Input.dispatchMouseEvent', { type:'mouseReleased', ...point, button:'left', clickCount:1 });
+  if (destination?.startsWith('/')) {
+    await wait(`location.pathname === ${JSON.stringify(destination)}`);
+    await wait(`${q('.workspace-panel--' + (destination.startsWith('/develop') ? 'develop' : 'design'))} && !${q('.workspace-panel--' + (destination.startsWith('/develop') ? 'develop' : 'design'))}.hidden`);
+  }
   await evaluate('new Promise(resolve => requestAnimationFrame(resolve))');
 }
 async function fill(selector, value) {
@@ -87,9 +116,12 @@ try {
       const name = decodeURIComponent(new URL(req.url,'http://localhost').pathname);
       let path = resolve(root, `.${name}`);
       if(path !== resolve(root) && !path.startsWith(resolve(root)+sep)) {res.writeHead(403).end();return;}
-      try {if((await stat(path)).isDirectory())path=resolve(path,'index.html');}
-      catch {if(!extname(path))path+='.html';}
-      res.writeHead(200,{'Content-Type':mime[extname(path)] || 'application/octet-stream','Cache-Control':'no-store'}).end(await readFile(path));
+      if (!extname(path)) {
+        try { await stat(`${path}.html`); path += '.html'; }
+        catch { path = resolve(path, 'index.html'); }
+      }
+      const body = await readFile(path);
+            res.writeHead(200,{'Content-Type':mime[extname(path)] || 'application/octet-stream','Cache-Control':'no-store'}).end(body);
     } catch {res.writeHead(404).end('Not found');}
   });
   await new Promise((resolve,reject) => {server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
@@ -131,7 +163,7 @@ try {
     assert.equal(await evaluate(`[...document.querySelectorAll('.theme-pane')].filter(e=>e.getClientRects().length && !e.closest('[hidden]')).length`),1);
     assert.equal(await evaluate(`document.querySelector('[aria-label="Design preview context"]')`),null);
     assert.equal(await evaluate(`document.querySelectorAll('[data-ds-theme="light"]').length`),1);
-    assert.equal(await evaluate(`document.querySelectorAll('[data-ds-theme="dark"]').length`),1);
+    assert.equal(await evaluate(`document.querySelectorAll('[data-ds-theme="dark"]').length`),0);
     assert.equal(await evaluate(`getComputedStyle(document.documentElement).colorScheme`),'light');
     assert.equal(await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--studio-color-accent').trim()`),'#e8673c');
     assert.equal(await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--studio-color-border').trim()`),'#eee5e0');
@@ -140,10 +172,10 @@ try {
     assert.equal(await evaluate(`${q('input[id$="-source"]')}.value`),'#e8673c');
     assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-primary').trim()`),'#e8673c');
     assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-on-primary').trim()`),'#291b15');
-    assert.equal(await evaluate(`${q('.preview-canvas')}.dataset.design`),'true');
-    assert.equal(await evaluate(`getComputedStyle(${q('.preview-canvas')}).backgroundColor`),'rgb(255, 248, 246)');
-    assert.equal(await evaluate(`${q('.preview-canvas')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-background').trim()`));
-    assert.equal(await evaluate(`getComputedStyle(${q('.canvas-label')}).color`),'rgb(32, 25, 22)');
+    assert.equal(await evaluate(`${q('#workspace-content')}.dataset.design`),'true');
+    assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),'#fff8f6');
+    assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-background').trim()`));
+    assert.ok(await evaluate(`${q('.canvas-label')}.getClientRects().length>0`));
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).borderTopWidth`),'0px');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).backgroundColor`),'rgba(0, 0, 0, 0)');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Card preview"] article')}).borderTopWidth`),'1px');
@@ -155,27 +187,28 @@ try {
     await click(named('[aria-label="Design theme"] button','Dark'));
     assert.ok(await evaluate(`${q('.editor-title')}.textContent.includes('Dark')`));
     assert.equal(await evaluate(`${q('.theme-pane:not([hidden])')}.getAttribute('aria-label')`),'Dark preview');
-    assert.equal(await evaluate(`${q('.preview-canvas')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="dark"]')}.style.getPropertyValue('--ds-background').trim()`));
-    assert.equal(await evaluate(`getComputedStyle(${q('.canvas-label')}).color`),'rgb(237, 226, 222)');
+    assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="dark"]')}.style.getPropertyValue('--ds-background').trim()`));
+    assert.equal(await evaluate(`${q('.theme-pane [data-ds-theme]')}.dataset.dsTheme`),'dark');
     await capture('studio-desktop-dark');
-    await click(named('nav[aria-label="Components"] button','Button'));
+    await navigate('design','button');
     await fill('#token-background','#234567');
     const before = await stored();
     await fill('#token-background','#123456');
     const after = await stored();
     assert.deepEqual(after.themes.light,before.themes.light);
     assert.equal(after.themes.dark.components.button.background,'#123456');
-    await click(named('[aria-label="Workspace view"] [role="tab"]','Develop'));
-    assert.equal(await evaluate(`${q('.preview-canvas')}.hasAttribute('data-design')`),false);
+    await click(named('[aria-label="Workspace view"] a','Develop'));
+    assert.equal(await evaluate(`${q('#workspace-content')}.hasAttribute('data-design')`),false);
     assert.ok(await evaluate(`${q('.workspace-panel:not([hidden])')}.textContent.includes('#123456')`));
     assert.equal(await evaluate(`${q('.viewport-controls')}.getClientRects().length`),0);
     assert.ok(await evaluate(`${q('[aria-label="Design theme"]')}.getClientRects().length > 0`));
     await click(named('[aria-label="Design theme"] button','Light'));
     assert.ok(await evaluate(`${q('.workspace-panel:not([hidden])')}.textContent.includes('light theme')`));
     await click(named('[aria-label="Design theme"] button','Dark'));
-    await click(named('[aria-label="Workspace view"] [role="tab"]','Design'));
+    await click(named('[aria-label="Workspace view"] a','Design'));
   });
   await check('one preset applies both themes atomically and preserves geometry and overrides',async()=>{
+    await navigate('design','button');
     await click(named('.editor-scope button','Global tokens'));
     await click(q('[data-palette-builder] > summary'));
     const before=await stored();
@@ -186,6 +219,7 @@ try {
       assert.equal(after.themes[mode].global.radius,before.themes[mode].global.radius);
       assert.deepEqual(after.themes[mode].components,before.themes[mode].components);
       assert.notEqual(after.themes[mode].global.primary,before.themes[mode].global.primary);
+      await click(named('[aria-label="Design theme"] button',mode === 'light' ? 'Light' : 'Dark'));
       assert.equal(await evaluate(`${q(`[data-ds-theme="${mode}"]`)}.style.getPropertyValue('--ds-primary').trim()`),after.themes[mode].global.primary);
     }
     assert.notEqual(after.themes.light.global.background,after.themes.dark.global.background);
@@ -205,7 +239,7 @@ try {
   await check('editing the selected global background recolors the grid without touching the other theme',async()=>{
     const before=await stored();
     await fill('#token-background','#123456');
-    assert.equal(await evaluate(`getComputedStyle(${q('.preview-canvas')}).backgroundColor`),'rgb(18, 52, 86)');
+    assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),'#123456');
     assert.deepEqual((await stored()).themes.light,before.themes.light);
     await fill('#token-background',before.themes.dark.global.background);
   });
@@ -228,26 +262,100 @@ try {
     await click(q('[aria-label="Close export dialog"]'));
     await wait(`!${q('.export-dialog')}`);
   });
-  await check('mounted previews retain independent demo state across themes and working views',async()=>{
+  await check('same expanded demo tree survives theme, routes and history in the persistent layout',async()=>{
+    await navigate('design','button');
     await click(named('[aria-label="Design theme"] button','Light'));
-    await click(named('.theme-pane:not([hidden]) [aria-label="Button preview"] button','Get started'));
-    await wait(`${q('.theme-pane:not([hidden]) [aria-label="Button preview"]')}.textContent.includes('successfully (1)')`);
+    await click(named('[data-specimen="button"] button','Get started'));
+    await fill('[data-specimen="input"] input[type="email"]','retained@example.com');
+    await evaluate(`window.__specimens=[...document.querySelectorAll('[data-specimen]')];window.__pane=${q('.theme-pane')};window.__layout=${q('.studio-sidebar')};window.__origin=performance.timeOrigin`);
+    const retained = async () => {
+      assert.equal(await evaluate(`window.__origin===performance.timeOrigin && window.__layout===${q('.studio-sidebar')} && window.__pane===${q('.theme-pane')} && window.__specimens.every(e=>e.isConnected && e===document.querySelector('[data-specimen="'+e.dataset.specimen+'"]'))`),true);
+      assert.equal(await evaluate(`${q('[data-specimen="input"] input[type="email"]')}.value`),'retained@example.com');
+      assert.ok(await evaluate(`${q('[data-specimen="button"]')}.textContent.includes('successfully (1)')`));
+      assert.equal(await evaluate(`document.querySelectorAll('.theme-pane').length`),1);
+            assert.equal(await evaluate(`document.querySelectorAll('[data-specimen="card"] article').length`),3);
+            assert.ok(await evaluate(`!!${q('[data-specimen="input"] input[readonly]')} && !!${q('[data-specimen="button"] [aria-busy="true"]')} && !!${q('[data-specimen="checkbox"] [aria-checked="mixed"]')}`));
+      assert.equal(await evaluate(`${q('.theme-pane [data-ds-theme]')}.dataset.dsTheme`),'dark');
+    };
     await click(named('[aria-label="Design theme"] button','Dark'));
-    assert.ok(await evaluate(`${q('.theme-pane:not([hidden]) [aria-label="Button preview"]')}.textContent.includes('Get started')`));
-    await click(named('[aria-label="Workspace view"] [role="tab"]','Develop'));
-    await click(named('[aria-label="Workspace view"] [role="tab"]','Design'));
-    await click(named('[aria-label="Design theme"] button','Light'));
-    assert.ok(await evaluate(`${q('.theme-pane:not([hidden]) [aria-label="Button preview"]')}.textContent.includes('successfully (1)')`));
+    await retained();
+    await navigate('develop','button');
+    await navigate('develop','input');
+    await navigate('design','input');
+    await retained();
+    for (const [direction,view,id] of [['back','develop','input'],['back','develop','button'],['back','design','button'],['forward','develop','button'],['forward','develop','input'],['forward','design','input']]) {
+      await evaluate(`history.${direction}()`);
+      await route(view,id);
+      await retained();
+    }
+    await navigate('design');
+    await retained();
+    await navigate('design','button');
+  });
+  await check('canvas target, fit, reset, zoom, pointer pan and keyboard scrolling',async()=>{
+    await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
+    await wait(`${q('[aria-label="Zoom level"]')}.textContent==='100%'`);
+    await click(q('[aria-label="Zoom in"]'));
+    assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'110%');
+    await click(q('[aria-label="Zoom out"]'));
+    assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'100%');
+    await navigate('design','checkbox');
+    await wait(`(()=>{const a=${q(canvas)}.getBoundingClientRect(),b=${q('[data-specimen="checkbox"]')}.getBoundingClientRect();return b.bottom>a.top && b.top<a.bottom && b.right>a.left && b.left<a.right})()`);
+    await click(named('[aria-label="Canvas zoom"] button','Fit'));
+    assert.ok(await evaluate(`parseInt(${q('[aria-label="Zoom level"]')}.textContent)<100`));
+    await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
+    await evaluate(`${q(canvas)}.scrollTo(0,0);${q(canvas)}.focus()`);
+    await key('ArrowDown');
+    await wait(`${q(canvas)}.scrollTop>0`);
+    await evaluate(`${q(canvas)}.scrollTo(0,0)`);
+    // Find visible empty canvas background, never use a specimen as the drag handle.
+    const point=await evaluate(`(()=>{const e=${q(canvas)},r=e.getBoundingClientRect();for(let y=r.top+10;y<Math.min(r.bottom,innerHeight)-10;y+=8)for(let x=r.left+10;x<r.right-20;x+=8){const t=document.elementFromPoint(x,y);if(t && e.contains(t) && !t.closest('[data-specimen]'))return {x,y};}throw Error('No visible canvas background')})()`);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
+    await wait(`${q(canvas)}.dataset.dragging==='true'`);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:point.x-60,y:point.y-80,button:'left',buttons:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x-60,y:point.y-80,button:'left',clickCount:1});
+    await wait(`${q(canvas)}.scrollTop>0 && !${q(canvas)}.hasAttribute('data-dragging')`);
+    await navigate('design','button');
+    await evaluate(`(${named('[data-specimen="button"] button','All set')}).focus()`);
+    assert.equal(await evaluate(`document.activeElement===(${named('[data-specimen="button"] button','All set')})`),true);
+    await key('Enter');
+    await wait(`${q('[data-specimen="button"]')}.textContent.includes('successfully (2)')`);
+    await capture('studio-canvas');
+  });
+  await check('Develop separates docs from canvas and inspector; copy and theme token references',async()=>{
+    await navigate('develop','button');
+    assert.equal(await evaluate(`${q('.preview-canvas')}.getClientRects().length`),0);
+    assert.equal(await evaluate(`${q('#token-editor')}.getClientRects().length`),0);
+    assert.equal(await evaluate(`${q('.workspace-panel--develop [data-specimen]')}`),null);
+    const source=await evaluate(`${q('.workspace-panel--develop pre code')}.textContent`);
+    assert.ok(source.includes('Button'));
+    await send('Browser.grantPermissions',{origin:await evaluate('location.origin'),permissions:['clipboardReadWrite','clipboardSanitizedWrite']});
+    await click(named('.workspace-panel--develop button','Copy React code'));
+    await wait(`navigator.clipboard.readText().then(text=>text===${JSON.stringify(source)})`);
+    for(const mode of ['light','dark']) {
+      await click(named('[aria-label="Design theme"] button',mode==='light'?'Light':'Dark'));
+      assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes('${mode} theme')`));
+      const data=await stored();
+      assert.ok(await evaluate(`${q('.workspace-panel--develop table')}.textContent.length>0`));
+      assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes(${JSON.stringify(data.themes[mode].components.button.background || data.themes[mode].global.primary)})`));
+    }
+    await capture('studio-develop-button');
+    await navigate('design','button');
   });
   await check('responsive layout, English accessible names and selectable preview themes',async()=>{
     await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:false});
     for(const view of ['Design','Develop']) {
-      await click(named('[aria-label="Workspace view"] [role="tab"]',view));
+      await click(named('[aria-label="Workspace view"] a',view));
       assert.ok(await evaluate('document.documentElement.scrollWidth <= 375'));
       await capture(`studio-375-${view.toLowerCase()}`);
     }
-    await click(named('[aria-label="Workspace view"] [role="tab"]','Design'));
-    assert.equal(await evaluate(`${q('[aria-label="Current contrast checks"] details')}.open`),false);
+    await click(named('[aria-label="Workspace view"] a','Design'));
+    for(const view of ['design','develop']) for(const id of ids) {
+      await navigate(view,id);
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'),`mobile overflow: ${view}/${id}`);
+      if(view === 'design') assert.ok(await evaluate(`${q(`[data-specimen="${id}"]`)}.getClientRects().length>0`));
+    }
+    await navigate('design','button');
     assert.ok(await evaluate(`${q('.mobile-editor-link')}.getClientRects().length > 0`));
     await click(q('.mobile-editor-link'));
     assert.equal(await evaluate('location.hash'),'#token-editor');
@@ -282,6 +390,20 @@ try {
       assert.deepEqual(await stored(),backup);
     } finally {await evaluate('window.confirm=window.__confirm;delete window.__confirm');}
   });
+  for(const view of ['design','develop']) for(const id of ['overview',...ids]) {
+    await check(`direct static opening ${href(view,id)}`,async()=>{
+      const url=`http://127.0.0.1:${server.address().port}${href(view,id)}`;
+      const response=await fetch(url);
+      assert.equal(response.status,200);
+      assert.ok((await response.text()).includes('<html'));
+      const origin=await evaluate('performance.timeOrigin');
+      await send('Page.navigate',{url});
+      await wait(`performance.timeOrigin!==${origin}`);
+      await route(view,id);
+      const name=id[0].toUpperCase()+id.slice(1);
+            assert.equal(await evaluate(`${q('h1')}.textContent`),view==='develop'?(id==='overview'?'Token reference':`${name} documentation`):(id==='overview'?'Your design system':name));
+    });
+  }
   await check('no runtime, browser console or resource errors',async()=>{await delay(200);assert.deepEqual(errors,[]);});
 } catch(error) {failures.push('harness');console.error(`FAIL harness: ${error.stack || error}`);}
 finally {

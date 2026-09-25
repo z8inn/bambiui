@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Button as BaseButton } from "@base-ui/react/button";
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
@@ -90,23 +91,23 @@ export function NavItem({
   current = false,
   end,
   children,
-  onClick,
+  href,
 }: {
   icon: ReactNode;
   current?: boolean;
   end?: ReactNode;
   children: ReactNode;
-  onClick: () => void;
+  href: string;
 }) {
   return (
-    <BaseButton
+    <Link
       className="nav-item"
-      aria-current={current ? "true" : undefined}
-      onClick={onClick}
+      aria-current={current ? "page" : undefined}
+      href={href}
     >
       {icon}
       {children}
       {end}
-    </BaseButton>
+    </Link>
   );
 }
