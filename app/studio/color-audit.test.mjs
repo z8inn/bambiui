@@ -54,6 +54,18 @@ test("both normalized defaults pass finite, deterministic, pure diagnostics", ()
   assert.deepEqual(auditSystemColors(fresh()), auditSystemColors(fresh(), "light"));
 });
 
+test("logo-color primary uses readable dark ink and derived link text", () => {
+  const theme = fresh();
+  const variables = toCSSVariables(theme);
+  const checks = byId(theme);
+  assert.equal(theme.global.primary, "#e8673c");
+  assert.equal(theme.global.onPrimary, "#291b15");
+  pair(checks.get("button.primary.text"), theme.global.onPrimary, theme.global.primary);
+  pair(checks.get("button.link.text"), variables["--ds-primary-on-subtle"], theme.global.background);
+  pair(checks.get("global.primary.muted"), variables["--ds-primary-on-subtle"], theme.global.muted);
+  allPass(theme, "light");
+});
+
 test("equal component overrides still fail without changing globals", () => {
   for (const mode of modes) {
     const theme = fresh(mode);
@@ -138,7 +150,7 @@ test("button hover/active retain ink and use derived fills; link only underlines
     ]) {
       for (const state of ["hover", "active"]) pair(checks.get(`button.${variant}.${state}`), ink, v[`${prefix}-${state}`]);
     }
-    for (const state of ["text", "hover", "active"]) pair(checks.get(`button.link.${state}`), theme.global.primary, theme.global.background);
+    for (const state of ["text", "hover", "active"]) pair(checks.get(`button.link.${state}`), v["--ds-primary-on-subtle"], theme.global.background);
     pair(checks.get("button.outline.hover"), theme.global.foreground, theme.global.muted);
     assert.equal(checks.has("button.link.boundary"), false);
     assert.equal(checks.has("button.ghost.boundary"), false);
@@ -169,7 +181,7 @@ test("legacy v1 and v2 migration preserves invalid manual pairs in both modes", 
     const workspace = parseDesignSystem(JSON.stringify({ version, name: "Legacy", global: version === 1 ? global : { ...fresh().global, ...global }, components: fresh().components }));
     for (const mode of modes) {
       const checks = byId(workspace.themes[mode], mode);
-      for (const id of ["global.onPrimary.primary", "global.primary.background", "global.border.background", "button.foreground", "input.boundary", "switch.unchecked.boundary", "checkbox.unchecked.boundary"]) assert.equal(checks.get(id).passes, false, `${version}/${mode}/${id}`);
+      for (const id of ["global.onPrimary.primary", "global.border.background", "button.foreground", "input.boundary", "switch.unchecked.boundary", "checkbox.unchecked.boundary"]) assert.equal(checks.get(id).passes, false, `${version}/${mode}/${id}`);
     }
   }
 });

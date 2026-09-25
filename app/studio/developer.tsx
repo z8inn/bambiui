@@ -15,14 +15,14 @@ import {
 import styles from "./developer.module.css";
 import { developerCopy, type NoteKey } from "./developer-copy";
 import type { PaletteMode } from "./color-engine";
-import type { Locale } from "./locale";
+
 
 export type DeveloperViewProps = {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   mode: PaletteMode;
   cssOutput: string;
-  locale: Locale;
+
 };
 
 type PropRow = readonly [prop: string, type: string, defaultValue: string, noteKey: NoteKey];
@@ -111,8 +111,8 @@ function ScrollRegion({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-function ReactUsage({ selected, locale }: { selected: ComponentId; locale: Locale }) {
-  const copy = developerCopy[locale];
+function ReactUsage({ selected }: { selected: ComponentId }) {
+  const copy = developerCopy;
   const source = snippets[selected];
   const highlighted = useMemo(() => highlight(source), [source]);
   const [copyStatus, setCopyStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
@@ -159,8 +159,8 @@ function ReactUsage({ selected, locale }: { selected: ComponentId; locale: Local
   );
 }
 
-export function DeveloperView({ selected, system, mode, cssOutput, locale }: DeveloperViewProps) {
-  const copy = developerCopy[locale];
+export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperViewProps) {
+  const copy = developerCopy;
   const component = selected === "overview" ? null : reference[selected];
   const theme = system.themes[mode];
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
@@ -173,21 +173,14 @@ export function DeveloperView({ selected, system, mode, cssOutput, locale }: Dev
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>{copy.developerReference}</p>
-        <h2>{component ? component.name : copy.systemTokens}</h2>
-        <p>
-          {component
-            ? copy.componentIntro
-            : copy.overviewIntro}
-        </p>
         <p className={styles.systemName}>{copy.system}: {system.name} · {copy.modeName[mode]} {copy.theme} · {copy.source} {system.themes[mode].source}</p>
       </header>
 
       {selected !== "overview" && component && (
         <>
-          <ReactUsage key={selected} selected={selected} locale={locale} />
-          <section className={styles.section}>
-            <h3>{copy.propsAndDefaults}</h3>
+          <ReactUsage key={selected} selected={selected} />
+          <details className={styles.reference}>
+            <summary>{copy.propsAndDefaults}</summary>
             <p>{copy.propsDescription}</p>
             <ScrollRegion label={copy.propsRegion(component.name)}>
               <table className={styles.table}>
@@ -206,12 +199,12 @@ export function DeveloperView({ selected, system, mode, cssOutput, locale }: Dev
               </table>
             </ScrollRegion>
             <p>{copy.componentNotes[selected]}</p>
-          </section>
+          </details>
         </>
       )}
 
-      <section className={styles.section}>
-        <h3>{component ? copy.tokenInheritance : copy.globalTokenReference}</h3>
+      <details className={styles.reference} open={selected === "overview"}>
+        <summary>{component ? copy.tokenInheritance : copy.globalTokenReference}</summary>
         <p>
           {component
             ? copy.componentTokensDescription
@@ -236,11 +229,11 @@ export function DeveloperView({ selected, system, mode, cssOutput, locale }: Dev
             </tbody>
           </table>
         </ScrollRegion>
-      </section>
+      </details>
 
       {derived.length > 0 && (
-        <section className={styles.section}>
-          <h3>{copy.derivedColors}</h3>
+        <details className={styles.reference}>
+          <summary>{copy.derivedColors}</summary>
           <p>{copy.derivedDescription(mode)}</p>
           <ScrollRegion label={copy.derivedThemeVariables}>
             <table className={styles.table}>
@@ -251,7 +244,7 @@ export function DeveloperView({ selected, system, mode, cssOutput, locale }: Dev
               ))}</tbody>
             </table>
           </ScrollRegion>
-        </section>
+        </details>
       )}
       <section className={styles.section}>
         <h3>{copy.cssVariableExport}</h3>

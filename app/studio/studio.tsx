@@ -9,9 +9,8 @@ import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
 import { DeveloperView } from "./developer";
 import { ColorBuilder, ContrastReport } from "./color-builder";
-import { EditorThemeControl } from "./editor-theme";
 import type { PaletteMode } from "./color-engine";
-import { copy as studioStrings, type Locale } from "./locale";
+import { copy as t } from "./studio-copy";
 import {
   componentIds,
   defaultSystem,
@@ -32,8 +31,6 @@ import {
 type Selection = "overview" | ComponentId;
 type Scope = "global" | "component";
 type View = "design" | "develop";
-type PreviewContext = "components" | "scenario";
-
 
 function isValidToken(field: TokenField, text: string) {
   if (field.type === "color") return /^#[\da-f]{6}$/i.test(text);
@@ -52,16 +49,13 @@ function TokenControl({
   overridden,
   onChange,
   onReset,
-  locale,
 }: {
-  locale: Locale;
   field: TokenField;
   value: string | number;
   overridden?: boolean;
   onChange: (value: string | number) => void;
   onReset: () => void;
 }) {
-  const t = studioStrings[locale];
   const label = t.tokenLabels[field.key];
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -169,20 +163,13 @@ export default function Studio() {
   const [compact, setCompact] = useState(false);
   const [view, setView] = useState<View>("design");
   const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
-  const [compareThemes, setCompareThemes] = useState(false);
-  const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
-  const [locale, setLocale] = useState<Locale>("en");
-  const t = studioStrings[locale];
+
   const [status, setStatus] = useState<"loading" | "saved" | "draft" | "unsaved">("loading");
   const [notice, setNotice] = useState<"" | "loadError" | "storageError" | "imported" | "importError">("");
   const [importError, setImportError] = useState<"fileSize" | "invalidJson">("invalidJson");
   const [format, setFormat] = useState<"css" | "json">("css");
   const [copyStatus, setCopyStatus] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,10 +216,7 @@ export default function Studio() {
   );
   const colorFields = fields.filter((field) => field.type === "color");
   const numberFields = fields.filter((field) => field.type === "number");
-  const overrideCount = Object.values(theme.components).reduce(
-    (count, tokens) => count + Object.keys(tokens).length,
-    0,
-  );
+
   const cssOutput = useMemo(() => exportCSS({ themes: system.themes }), [system.themes]);
   const output = format === "css" ? cssOutput : JSON.stringify(system, null, 2);
 
@@ -308,17 +292,8 @@ export default function Studio() {
               update({ ...system, name: event.target.value })
             }
           />
-          <span className="draft-tag">{t.draftTag}</span>
         </div>
         <div className="header-actions">
-          <EditorThemeControl locale={locale} />
-          <label className="language-control">
-            <span className="sr-only">{t.language}</span>
-            <select aria-label={t.language} value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
-              <option value="en">English</option>
-              <option value="tr">Türkçe</option>
-            </select>
-          </label>
           <span className="save-status">
             <span
               className={`status-dot ${status === "unsaved" ? "warning" : ""}`}
@@ -440,45 +415,20 @@ export default function Studio() {
 
       <aside className="studio-sidebar" aria-label={t.library}>
         <div className="sidebar-project">
-          <span className="project-icon">
-            <Icon name="box" size={20} />
-          </span>
-          <div>
-            <strong>{t.yourSystem}</strong>
-            <span>{t.feel}</span>
-          </div>
+          <span className="project-icon"><Icon name="box" size={20} /></span>
+          <div><strong>{t.yourSystem}</strong><span>{t.feel}</span></div>
         </div>
-        <div className="sidebar-section-label">{t.workspace.toLocaleUpperCase(locale)}</div>
+        <div className="sidebar-section-label">{t.workspace.toUpperCase()}</div>
         <NavItem
           icon={<Icon name="grid" />}
           current={selection === "overview"}
-          end={<span className="nav-end">6</span>}
           onClick={() => select("overview")}
         >
           {t.overview}
         </NavItem>
-        <NavItem
-          icon={<Icon name="sliders" />}
-          end={
-            <span className="nav-end">
-              <Icon name="chevron" size={12} />
-            </span>
-          }
-          onClick={() => {
-            setScope("global");
-            document
-              .getElementById("token-editor")
-              ?.scrollIntoView({
-                              block: "nearest",
-                              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-                            });
-          }}
-        >
-          {t.globalTokens}
-        </NavItem>
         <div className="sidebar-divider" />
         <div className="sidebar-section-label flex justify-between">
-          {t.components.toLocaleUpperCase(locale)}<span>06</span>
+          {t.components.toUpperCase()}
         </div>
         <div className="search-field">
           <Icon name="search" size={14} />
@@ -521,13 +471,6 @@ export default function Studio() {
           )}
         </nav>
         <div className="sidebar-bottom">
-          <div className="tip-card">
-            <Icon name="spark" size={18} />
-            <strong>{t.tip}</strong>
-            <p>
-              {t.tipDetail}
-            </p>
-          </div>
           <a
             className="docs-link"
             href="https://base-ui.com/react/overview/quick-start"
@@ -544,29 +487,13 @@ export default function Studio() {
       <main className="studio-main" id="workspace" tabIndex={-1}>
         <div className="workspace-heading">
           <div className="breadcrumbs">
-            {t.workspace}
-            <Icon name="chevron" size={11} />
-            <span>
-              {selection === "overview" ? t.overview : t.componentNames[selection]}
-            </span>
+            {t.workspace}<Icon name="chevron" size={11} />
+            <span>{selection === "overview" ? t.overview : t.componentNames[selection]}</span>
           </div>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1>
-                {selection === "overview"
-                  ? t.overviewTitle
-                  : t.componentTitle(t.componentNames[selection])}
-              </h1>
-              <p>
-                {selection === "overview"
-                  ? t.overviewIntro
-                  : t.componentIntro}
-              </p>
-            </div>
-            <span className="live-badge">
-              <span />
-              {t.live}
-            </span>
+          <div>
+            <h1>{selection === "overview" ? t.overviewTitle : t.componentTitle(t.componentNames[selection])}</h1>
+            <p>{selection === "overview" ? t.overviewIntro : t.componentIntro}</p>
+            <a className="mobile-editor-link" href="#token-editor">{t.jumpToTokens} <Icon name="arrow" size={12} /></a>
           </div>
         </div>
         <Tabs.Root
@@ -575,56 +502,39 @@ export default function Studio() {
           onValueChange={(next) => setView(next as View)}
         >
           <div className="preview-toolbar">
-            <Tabs.List className="view-switch" aria-label={t.workspaceView}>
-              <Tabs.Tab value="design">
-                <Icon name="grid" size={14} />
-                {t.design}
-              </Tabs.Tab>
-              <Tabs.Tab value="develop">
-                <Icon name="code" size={15} />
-                {t.develop}
-              </Tabs.Tab>
-            </Tabs.List>
-            <div className="preview-width-controls" hidden={view !== "design"}>
-              <span className="viewport-label">
-                {compact ? "375 px" : t.responsive}
-              </span>
-              <SegmentedControl
-                aria-label={t.width}
-                value={compact ? "mobile" : "desktop"}
-                onValueChange={(next) => setCompact(next === "mobile")}
-              >
-                <SegmentedControl.Item value="desktop" aria-label={t.desktop}>
-                  <Icon name="desktop" size={15} />
-                </SegmentedControl.Item>
-                <SegmentedControl.Item value="mobile" aria-label={t.mobile}>
-                  <Icon name="mobile" size={15} />
-                </SegmentedControl.Item>
-              </SegmentedControl>
-            </div>
+              <Tabs.List className="view-switch" aria-label={t.workspaceView}>
+                <Tabs.Tab value="design">
+                  <Icon name="grid" size={14} />
+                  {t.design}
+                </Tabs.Tab>
+                <Tabs.Tab value="develop">
+                  <Icon name="code" size={15} />
+                  {t.develop}
+                </Tabs.Tab>
+              </Tabs.List>
+              <div className="preview-width-controls">
+                <div className="viewport-controls" hidden={view !== "design"}>
+                  <span className="viewport-label">{compact ? t.mobile : t.responsive}</span>
+                  <SegmentedControl
+                    aria-label={t.width}
+                    value={compact ? "mobile" : "desktop"}
+                    onValueChange={(next) => setCompact(next === "mobile")}
+                  >
+                    <SegmentedControl.Item value="desktop" aria-label={t.desktop}><Icon name="desktop" size={15} /></SegmentedControl.Item>
+                    <SegmentedControl.Item value="mobile" aria-label={t.mobile}><Icon name="mobile" size={15} /></SegmentedControl.Item>
+                  </SegmentedControl>
+                </div>
+                <SegmentedControl
+                  aria-label={t.theme}
+                  value={activeTheme}
+                  onValueChange={(next) => setActiveTheme(next as PaletteMode)}
+                >
+                  <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
+                  <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
+                </SegmentedControl>
+              </div>
           </div>
-          <div className="theme-toolbar">
-            <div>
-              <strong>{t.theme}</strong>
-              <span>{t.editing(activeTheme === "light" ? t.light : t.dark)}</span>
-            </div>
-            <SegmentedControl
-              aria-label={t.theme}
-              value={compareThemes && view === "design" ? "compare" : activeTheme}
-              onValueChange={(next) => {
-                if (next === "compare") setCompareThemes(true);
-                else {
-                  setActiveTheme(next as PaletteMode);
-                  setCompareThemes(false);
-                }
-              }}
-            >
-              <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
-              <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
-              {view === "design" && <SegmentedControl.Item value="compare">{t.compare}</SegmentedControl.Item>}
-            </SegmentedControl>
-          </div>
-          <div className="preview-canvas">
+          <div className="preview-canvas" id="workspace-content" tabIndex={-1}>
             {notice && (
               <div role="status" className="notice">
                 <span>{notice === "importError" ? `${t.importFailed}: ${t[importError]}` : t[notice]}</span>
@@ -639,76 +549,32 @@ export default function Studio() {
               </div>
             )}
             <Tabs.Panel value="design" keepMounted className="workspace-panel">
-              <Tabs.Root
-                value={previewContext}
-                onValueChange={(next) => setPreviewContext(next as PreviewContext)}
-                className="preview-context"
-              >
-                <div className="context-toolbar">
-                  <Tabs.List className="context-switch" aria-label={t.context}>
-                    <Tabs.Tab value="components">{t.components}</Tabs.Tab>
-                    <Tabs.Tab value="scenario">{t.scenario}</Tabs.Tab>
-                  </Tabs.List>
-                  <p>{t.contextHint}</p>
+              <div className={`preview-frame ${compact ? "compact" : ""}`}>
+                <div className="canvas-label">
+                  <span>{selection === "overview" ? t.collection : t.explorer(t.componentNames[selection])}</span>
+                  <span>{selection === "overview" ? "01 — 06" : t.interactive}</span>
                 </div>
-                <div className={`preview-frame ${compact ? "compact" : ""}`}>
-                  <div className="canvas-label">
-                    <span>
-                      {previewContext === "scenario"
-                        ? t.scenarioLabel
-                        : selection === "overview"
-                          ? t.collection
-                          : t.explorer(t.componentNames[selection])}
-                    </span>
-                    <span>
-                      {previewContext === "components" && selection === "overview"
-                        ? "01 — 06"
-                        : t.interactive}
-                    </span>
-                  </div>
-                  <Preview
-                    selected={selection}
-                    system={system}
-                    compact={compact}
-                    mode={activeTheme}
-                    compare={compareThemes}
-                    onModeChange={setActiveTheme}
-                    locale={locale}
-                  />
-                </div>
-              </Tabs.Root>
+                <Preview selected={selection} system={system} compact={compact} mode={activeTheme} />
+              </div>
             </Tabs.Panel>
             <Tabs.Panel value="develop" keepMounted className="workspace-panel">
-              <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} locale={locale} />
+              <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} />
             </Tabs.Panel>
-            <div className="canvas-footnote">
-              <Icon name="link" size={13} />
-              {t.footnote}
-            </div>
           </div>
         </Tabs.Root>
-        <footer className="workspace-footer">
-          <span>
-            <span className="status-dot" />
-            {new Intl.NumberFormat(locale).format(componentIds.length)} {t.componentsCount}
-            <span className="footer-separator">/</span>
-            {new Intl.NumberFormat(locale).format(tokenFields.length)} {t.tokensCount}
-            <span className="footer-separator">/</span>
-            {new Intl.NumberFormat(locale).format(overrideCount)} {activeTheme === "light" ? t.light : t.dark} {t.overrides}
-          </span>
-          <span>{t.footer}</span>
-        </footer>
+
       </main>
 
       <aside
         className="token-editor"
         id="token-editor"
+        tabIndex={-1}
         aria-label={t.editor}
       >
         <div className="editor-title">
           <Icon name="sliders" />
           <h2>{t.inspector} · {activeTheme === "light" ? t.light : t.dark}</h2>
-          <span className="editor-count">{fields.length}</span>
+          <a className="mobile-preview-link" href="#workspace-content">{view === "design" ? t.backToPreview : t.backToCode}</a>
         </div>
         <SegmentedControl
           className="editor-scope"
@@ -727,44 +593,27 @@ export default function Studio() {
         <fieldset disabled={!ready} className="editor-fields">
           <legend className="sr-only">{t.editTokens(activeTheme === "light" ? t.light : t.dark)}</legend>
           <div className="editor-intro">
-            <span className="scope-icon">
-              <Icon name={isGlobal ? "sliders" : component} size={18} />
-            </span>
+            <span className="scope-icon"><Icon name={isGlobal ? "sliders" : component} size={18} /></span>
             <div>
-              <h3>
-                {isGlobal ? t.foundations : t.componentTokens(t.componentNames[component])}
-              </h3>
-              <p>
-                {isGlobal
-                  ? t.foundationsHint
-                  : t.componentHint}
-              </p>
+              <h3>{isGlobal ? t.foundations : t.componentTokens(t.componentNames[component])}</h3>
+              <p>{isGlobal ? t.foundationsHint : t.inheritComponent}</p>
             </div>
-          </div>
-          <div className="inherit-note">
-            <Icon name="link" size={13} />
-            <p>
-              {isGlobal
-                ? t.inheritGlobal
-                : t.inheritComponent}
-            </p>
           </div>
           {ready && (
             <div hidden={!isGlobal}>
               <ColorBuilder
                 key={workspaceRevision}
                 system={system}
-                mode={activeTheme}
-                locale={locale}
-                onApply={(colors, mode, source) => {
-                  const target = system.themes[mode];
-                  updateTheme({ ...target, source, global: { ...target.global, ...colors } }, mode);
-                  setActiveTheme(mode);
+                onApply={(palette) => {
+                  update({ ...system, themes: {
+                    light: { ...system.themes.light, source: palette.source, global: { ...system.themes.light.global, ...palette.light.tokens } },
+                    dark: { ...system.themes.dark, source: palette.source, global: { ...system.themes.dark.global, ...palette.dark.tokens } },
+                  } });
                 }}
               />
             </div>
           )}
-          <ContrastReport theme={theme} mode={activeTheme} component={isGlobal ? undefined : component} locale={locale} />
+          <ContrastReport key={`${activeTheme}-${scope}-${component}`} theme={theme} mode={activeTheme} component={isGlobal ? undefined : component} />
           {(
             [
               {
@@ -791,9 +640,8 @@ export default function Studio() {
               <div className={group.className}>
                 {group.items.map((field) => (
                   <TokenControl
-                    key={`${activeTheme}-${scope}-${component}-${field.key}`}
+                    key={`${workspaceRevision}-${activeTheme}-${scope}-${component}-${field.key}`}
                     field={field}
-                    locale={locale}
                     value={values[field.key as keyof typeof values]}
                     overridden={
                       isGlobal
@@ -835,10 +683,7 @@ export default function Studio() {
             {isGlobal ? t.resetGlobal : t.resetComponent}
           </Button>
         </fieldset>
-        <div className="editor-footer">
-          <span className="tiny-orbit" />
-          {t.changes}
-        </div>
+        <div className="editor-footer"><span className="tiny-orbit" />{t.changes}</div>
       </aside>
     </div>
   );

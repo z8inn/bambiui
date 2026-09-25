@@ -1,9 +1,7 @@
 .builder,
 .report {
-  display: grid;
   min-width: 0;
-  gap: 12px;
-  padding-block: 20px;
+  padding-block: 16px;
   border-top: 1px solid var(--studio-color-border);
   color: var(--studio-color-text);
   font-size: 12px;
@@ -11,9 +9,9 @@
   overflow-wrap: anywhere;
 }
 
-.builder h3,
+.builder > summary,
 .report h3 {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -21,6 +19,25 @@
 .report p {
   color: var(--studio-color-text-secondary);
   font-size: 11px;
+}
+
+.report[data-failing] {
+  border-left: 3px solid var(--studio-color-warning);
+  padding-left: 10px;
+  background: var(--studio-color-warning-subtle);
+}
+.report[data-failing] > p { color: var(--studio-color-warning); }
+
+.builder > summary {
+  cursor: pointer;
+}
+
+.builder[open] > :not(summary) { margin-top: 12px; }
+.report > * + * { margin-top: 5px; }
+
+.builder > summary:focus-visible {
+  outline: var(--studio-focus-ring);
+  outline-offset: var(--studio-focus-ring-offset);
 }
 
 .builder label {

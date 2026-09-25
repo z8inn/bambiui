@@ -6,6 +6,7 @@ import {
   paletteRoles,
 } from "./color-engine.ts";
 import type { PaletteMode, PaletteRole } from "./color-engine.ts";
+import { brandColor } from "./brand.ts";
 
 export const componentIds = [
   "button",
@@ -129,7 +130,7 @@ const legacyDefaults = {
   },
 };
 
-const defaultSource = "#e8673c";
+const defaultSource = brandColor;
 const defaultPalette = generatePalette(defaultSource);
 
 function defaultTheme(mode: PaletteMode): ThemeTokens {

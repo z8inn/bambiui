@@ -128,7 +128,7 @@
 
 .button[data-variant="link"] {
   --button-fill: transparent;
-  --button-ink: var(--ds-primary);
+  --button-ink: var(--ds-primary-on-subtle);
   --button-stroke: transparent;
   min-height: 0;
   padding-inline: 0;

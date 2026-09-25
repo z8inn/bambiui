@@ -1,112 +1,23 @@
-# bambiui implementation stages
+# bambiui implementation status
 
-## Scope and product decisions
+## Product decisions
 
-One design system, two working views: **Design** for visual decisions and **Develop** for implementation details. Switching views does not change the selected component, tokens or inspector scope. Design has **Components** and **Scenario** contexts. Existing local persistence remains unchanged; auth, server-side persistence and saving workflows are outside these stages.
+The studio has one English-only, light editor interface. Design displays one preview at a time. Choose Light or Dark beside the responsive control to target manual token editing; the same switch remains available in Develop to inspect either theme's reference. There is no editor appearance switch, Compare mode or Scenario context; Develop focuses on code and token references.
 
-Studio UI supports English (default) and Turkish. Editor appearance stays independent of user-designed preview tokens.
+The Color builder accepts one brand color. A valid six-digit hex value or preset immediately generates and applies both light and dark global color roles in a single update. Invalid/incomplete input does not change the saved system. Numeric values, component overrides and name remain untouched. Existing imported systems with different light/dark sources retain them until a new color is chosen; manual token edits still target the selected preview only.
 
-## 1. Workspace and preview — implemented
+The studio stores its schema-v3 system locally; v1/v2 migration copies historical values to both themes without recoloring. Both-theme CSS and v3 JSON exports remain unchanged. Auth, server persistence and account-based saving remain outside scope. The separate palette CLI still emits raw scales and roles when detailed recipes are needed.
 
-- Shared navigation and token inspector across Design and Develop.
-- Components context: collection or selected component variants, sizes and states.
-- Scenario context: interactive workspace settings using the six existing components.
-- Persistent mounted panels retain demo state across view/context switches.
-- Specimen backgrounds and inherited text use global design tokens, not editor colors.
-- Develop: existing React snippets with syntax highlighting and copy, props/defaults, live inherited/overridden token values, and full-system CSS variables.
-- Export limitations remain explicit: no standalone component package or component style export.
+## Implemented capabilities
 
-### Validation
+- Six components with consistent APIs and interactive Design specimens. Mounted theme previews retain demo state when switching views or selecting the other theme.
+- Inspector for 27 global tokens and optional per-component overrides. Contrast summary stays visible and failed checks are highlighted; details list modeled color pairs and warnings, including manual color failures. On narrow screens, jump links connect the workspace and inspector without adding tabs.
+- OKLCH generation of accessible light/dark usage colors from one source, preserving the source in JSON. A safe light brand source can remain the exact primary fill with dark ink; links use derived accessible text ink. The logo color is the fresh system's source. Generated defaults pass 127 modeled color pairs per theme; manual or legacy values may not.
+- Develop view with React examples, props/defaults, live aliases, derived values and full CSS. Code snippets are project examples, not a standalone component package.
+- Export/import of CSS/JSON, with v1/v2 migration and v3 round-trip. Import resets the generator input to the imported source; token input drafts remount with the imported system.
 
-- ESLint, TypeScript through production build, and static export passed.
-- Existing token tests: 43 passed.
-- Headless Chrome smoke tests: 10 passed, including panel visibility, shared selection, demo state, scenario input/submit state, computed preview colors vs editor chrome, override/reset, keyboard activation, 375px layout, and browser errors.
-- Smoke harness: `npm run build && node scripts/studio-smoke.mjs` (Node 22+, installed Chrome; override executable with `CHROME_PATH`). Uses a temporary browser profile, loopback static server and no new packages; cleans up on exit.
+## Validation and outstanding acceptance
 
-This is functional acceptance, not a complete visual or accessibility audit. Default palette contrast, unchecked control contrast, component variant color calculations and broader screen-reader/zoom testing remain for stages 2–3. Sidebar selection changes may recreate the selected specimen; switching view or context does not.
-
-## 2. Accessible color generation — implemented
-
-- Deterministic color engine separate from UI, using perceptual color scales.
-- Preserve the input brand color; derive accessible usage tones rather than silently treating every brand input as safe.
-- Generate primary and neutral scales; preserve semantic success/warning/danger/info color families.
-- Generate light/dark surface, text, boundary and interaction roles.
-- Verify actual foreground/background pairs, including compositing. Target 4.5:1 for normal text and 3:1 where non-text contrast is required.
-- Allow manual edits with explicit contrast warnings.
-- Gate: boundary-input tests, deterministic outputs, contrast tests and visual palette review.
-
-### Stage 2 checkpoint (superseded where noted by stage 3)
-
-- `color-engine.ts`: dependency-free OKLCH generation with chroma-reduction gamut mapping, 12-step primary/secondary/neutral/semantic scales, and both light/dark recipes. Source remains separate from usage tones; semantic hues remain stable.
-- `color-builder.tsx`: generation is separate from application. Apply merges only 17 global colors, preserving numeric tokens, component overrides, name and schema. Source/recipes remain mounted across scope/view changes, but are not persisted after reload.
-- `color-audit.ts`: finite current-CSS checks, including manual overrides, badge/card mixes, button brightness and enabled unchecked grayscale/opacity. Ratios are not rounded before pass/fail. The report is not certification.
-- CLI: `node --experimental-strip-types scripts/generate-palette.mjs '#e8673c'` emits a source-preserving `bambiui.color-recipe` v1 JSON artifact. It is intentionally distinct from the existing studio backup format.
-- Unit coverage: 43 token tests, 22 engine/integration/CLI tests and 9 current-color audit tests.
-- Browser coverage: 18 smoke checks, including the original workspace checks plus Generate/Apply isolation, invalid/stale sources, presets, source retention/resync, applied color preservation, live warnings, exports, computed recipe contrast and 375px expanded layout.
-- Light/dark desktop/mobile screenshots reviewed. Independent numerical review additionally swept 4,096 deterministic seeds without generation failures, on-color contrast failures or adjacent state-color collisions.
-- No dependencies or design-system schema changes. Explicit TypeScript extension imports are enabled under `noEmit` for native Node tests and CLI execution.
-
-### Next-stage boundary
-
-At the stage 2 checkpoint, palette application was not a multi-theme switch and interaction recipes were not wired to components. Stage 3 below supersedes those limitations. Passing generated recipes still does not imply arbitrary combinations or the entire application meet WCAG.
-
-## 3. Themes and component accessibility — implemented; manual acceptance pending
-
-- Separate editor light/dark/system preference from design preview light/dark/comparison.
-- Integrate generated role tokens; fix variant surface calculations and token bypasses.
-- Distinguish unchecked, disabled and loading states.
-- Verify keyboard, focus, names, errors, decorative icons, reduced motion and zoom.
-- Gate: all six components in both themes; automated checks plus manual keyboard/screen-reader and 200% zoom review.
-
-### Implemented
-
-- Independent editor Light/Dark/System appearance, including live OS changes and portaled dialogs; no new preference persistence.
-- Design Light/Dark/Compare with persistent per-theme demo instances and an explicit editing-theme target. Theme switches do not recolor or overwrite either theme.
-- Normalized schema v3: `themes.light` and `themes.dark`, each with source/global/component values. Strict parsing; v1/v2 copy existing values independently into both themes without recoloring. v1 additions retain historical defaults. JSON exports include both themes and sources.
-- Both-theme CSS export with color-scheme, 160 variables per theme (27 global, 60 component, 15 constants and 58 derived values). Developer reference separates derived values from manual overrides.
-- Runtime and generated palettes use the same role derivation. Button hover/active no longer use brightness; unchecked controls no longer use grayscale/opacity; filled cards use their actual surface/ink; badge colors derive from their actual background and neutral outline honors explicit border overrides.
-- Decorative icons hidden from names; invalid token focus ring independent of error styling; comparison labels aligned with accessible names; reduced-motion component styles.
-- Per-theme generator drafts/source restoration. Application preserves the other theme, geometry and overrides. Import resets the generator workspace to imported sources.
-- Bounded derivation cache with fresh results, endpoint-search cleanup, and memoized shared exports prevent unrelated editor interactions from repeating expensive manual-color searches.
-
-### Validation and remaining gate
-
-- 93 Node tests passed (56 tokens, 27 engine/integration/CLI, 10 audit).
-- ESLint, TypeScript and production static build passed.
-- 49 Chromium smoke checks passed: original workspace/builder flows plus appearance isolation/system changes, both-theme component contrast/states, keyboard/AX names, sources after reload, comparison targeting/state, derived exports, invalid focus, badge override/reset, reduced motion and responsive checks.
-- Defaults pass 127 modeled color pairs per mode; user values and legacy palettes remain auditable, not silently corrected.
-- Screenshots reviewed for editor/preview themes, comparison, dialog and mobile. Short/narrow layout viewports use a stacked layout to avoid squeezing the canvas between fixed sidebars.
-- **Full manual acceptance remains open:** Chromium keyboard automation and AX-tree checks are not a real VoiceOver session. CSS zoom and effective viewport/DPR checks are not browser-native 200% zoom. See `docs/accessibility-checklist.md` for the required manual pass. No full WCAG claim.
-
-**Transition decision:** implementation and automated checks are complete. Keep manual accessibility acceptance explicitly open; do not label the full stage gate passed until reviewed.
-
-## 4. Localization — implemented; automated gate passed
-
-- Typed Turkish/English dictionaries cover studio controls, preview specimens and scenario, builder, contrast report, developer explanations, accessible names, notices and errors. English remains the SSR/default language; switching languages updates `html.lang` after hydration. The language selector is session-only and does not change schema v3 or stored design values.
-- Source color and preview interactions, selected component, context, editing theme and builder drafts remain mounted and unchanged across language switches. Dynamic messages are stored as semantic states rather than previously rendered English text. Counts and contrast ratios are formatted for the selected locale; raw CSS, JSON, prop identifiers, token keys and code examples stay stable. No dates are displayed, so date formatting is not needed.
-- The default English SSR and hydration path and all prior browser flows remain intact. Localization applies to the client-side studio UI, not locale-specific routes or SEO metadata.
-
-### Validation and remaining gate
-
-- TypeScript production build and static export, ESLint and 97 Node tests passed (the 93 prior tests plus 4 runtime dictionary-parity checks; compile-time dictionary shapes are enforced).
-- 51 Chromium smoke checks passed (49 prior plus language/state retention and Turkish 375px reflow across both design themes and both views, with accessibility-tree names and browser errors).
-- Automated 375px checks do not establish visual perfection for every Turkish label. Manual VoiceOver and native 200% browser zoom acceptance from stage 3 remains open; see `docs/accessibility-checklist.md`. No full WCAG claim.
-
-**Transition decision:** stage 4 implementation and automated checks are complete; stage 5 integration quality gate remains. Manual accessibility acceptance must be completed before claiming the full accessibility promise.
-
-## 5. Integration quality gate — automated checks implemented; manual accessibility acceptance open
-
-- One browser integration flow now checks generating a palette for a non-editing theme without changing the other, manually creating a failing Button foreground/background pair, and checking the report, computed preview, Develop aliases, both CSS blocks and JSON across **English/Turkish × light/dark × Design/Develop**. Values and overrides stay unchanged across all eight combinations.
-- The exported v3 JSON backup is re-imported through the real file input after a deliberate edit; both themes and per-theme generator sources are restored. Schema remains v3; unit tests still cover v1/v2 migration.
-- `scripts/studio-visual-baseline.json` is a checked-in **structural** baseline for 16 canonical states (eight combinations × 1440px/375px): representative region geometry (±2px), computed editor colors and preview theme tokens. Ordinary smoke runs compare against it and reject overflow. `--record-visual` deliberately refreshes it for review after intentional UI changes; `--screenshots` saves representative screenshots for visual inspection. This is **not** pixel/image-diff coverage, nor a substitute for a human design review. Desktop Turkish/dark and mobile Turkish/dark Design/Develop captures were inspected at this checkpoint.
-- Documentation and the accessibility checklist describe implemented behavior and remaining manual work. No auth, server persistence or schema changes were introduced.
-
-### Validation and gate decision
-
-- `npm run build` (TypeScript/static export), `npm run lint`, `node --experimental-strip-types --test app/studio/*.test.mjs` (97 passed), and `git diff --check` passed.
-- `node scripts/studio-smoke.mjs` and `node scripts/studio-smoke.mjs --screenshots`: 54 Chromium checks passed each, including the matrix, import round-trip and structural baseline; no browser console/resource errors.
-- **Full gate not closed:** manual VoiceOver/Safari/Chrome, native 200% zoom, forced-colors and mobile increased-text-size checks remain open in `docs/accessibility-checklist.md`. Automated AX-tree, simulated reflow, baseline geometry and screenshot inspection cannot establish WCAG conformance or rule out every critical accessibility finding. Record these manual results before claiming the accessibility promise or full stage-5 acceptance.
-
-## Stage review format
-
-For each stage record completed work, commands/checks run, unresolved issues and the next-stage decision. Do not claim full accessibility compliance solely from passing automated tests.
+- Run `npm run build`, `npm run lint`, `node --experimental-strip-types --test app/studio/*.test.mjs` and, after building, `node scripts/studio-smoke.mjs`.
+- Smoke tests exercise the single visible theme preview, one-step generation and invalid input, selected-theme overrides, contrast warnings, view/theme retention, export/import, accessible names and responsive reflow. Optional `--screenshots` writes review images; there is no pixel regression suite. The old localization/appearance/structural-baseline tests are obsolete and have been replaced with checks of the current workflow.
+- **Full accessibility acceptance remains open:** Chromium AX inspection and responsive reflow cannot replace VoiceOver and browser-native 200% zoom. Complete the manual checks in `docs/accessibility-checklist.md` before claiming full WCAG conformance.

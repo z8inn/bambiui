@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useId,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
-import { Tabs } from "@base-ui/react/tabs";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Badge,
   Button,
@@ -18,9 +11,9 @@ import {
 } from "./components";
 
 import { Icon } from "./icons";
-import { Button as StudioButton } from "./controls";
+
 import type { PaletteMode } from "./color-engine";
-import type { Locale } from "./locale";
+
 import { previewCopy, type PreviewCopy } from "./preview-copy";
 
 import {
@@ -263,159 +256,42 @@ function Specimen({ id, expanded, copy }: { id: ComponentId; expanded: boolean; 
   }
 }
 
-function WorkspaceSettings({ copy }: { copy: PreviewCopy }) {
-  const titleId = useId();
-  const [workspace, setWorkspace] = useState("Acme Studio");
-  const [saves, setSaves] = useState(0);
-  const [saved, setSaved] = useState(false);
-  const markChanged = () => setSaved(false);
-
-  return (
-    <section className={styles.context} aria-labelledby={titleId}>
-      <div className={styles.sectionHeading}>
-        <span>{copy.workspace.inContext}</span>
-        <span className={styles.sectionHint}>{copy.workspace.hint}</span>
-      </div>
-      <form
-        className={styles.workspace}
-        onSubmit={(event) => {
-          event.preventDefault();
-          setSaves((count) => count + 1);
-          setSaved(true);
-        }}
-      >
-        <div className={styles.workspaceHeader}>
-          <div className={styles.workspaceIdentity}>
-            <span className={styles.workspaceMark}>
-              <Icon name="spark" size="1.15em" />
-            </span>
-            <div>
-              <h3 id={titleId}>{copy.workspace.settings}</h3>
-              <p className={styles.muted}>
-                {copy.workspace.subtitle}
-              </p>
-            </div>
-          </div>
-          <Badge variant="subtle" tone="primary">
-            {copy.workspace.plan}
-          </Badge>
-        </div>
-        <div className={styles.workspaceBody}>
-          <div className={styles.workspaceFields}>
-            <Input
-              label={copy.workspace.name}
-              name="workspace"
-              required
-              value={workspace}
-              onValueChange={(value) => {
-                setWorkspace(value);
-                markChanged();
-              }}
-            />
-            <div className={styles.preferences}>
-              <Switch
-                label={copy.workspace.emailNotifications}
-                defaultChecked
-                onCheckedChange={markChanged}
-              />
-              <Checkbox
-                label={copy.workspace.weeklySummary}
-                defaultChecked
-                onCheckedChange={markChanged}
-              />
-            </div>
-          </div>
-          <Card>
-            <Card.Icon>
-              <Icon name="spark" />
-            </Card.Icon>
-            <Card.Title>{copy.workspace.cardTitle}</Card.Title>
-            <Card.Description>
-              {copy.workspace.cardDescription}
-            </Card.Description>
-            <Badge dot tone="success" variant="subtle">
-              {copy.workspace.connected}
-            </Badge>
-          </Card>
-        </div>
-        <div className={styles.workspaceFooter}>
-          <p className={styles.saveStatus} role="status">
-            {saved ? (
-              <>
-                <Icon name="check" size="1.15em" /> {copy.workspace.saved(saves)}
-              </>
-            ) : (
-              copy.workspace.prompt
-            )}
-          </p>
-          <Button
-            type="submit"
-            endIcon={<Icon name={saved ? "check" : "arrow"} />}
-          >
-            {saved ? copy.workspace.changesSaved : copy.workspace.saveChanges}
-          </Button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-
 function Showcase({
   id,
   expanded,
-  badge,
   copy,
 }: {
   id: ComponentId;
   expanded: boolean;
-  badge: string;
+
   copy: PreviewCopy;
 }) {
-  const { name, description } = copy.components[id];
+  const { name } = copy.components[id];
 
   return (
     <section className={styles.showcase} aria-label={copy.showcase.preview(name)}>
       <header className={styles.showcaseHeader}>
-        <h3>{name}</h3>
-        <span className={styles.showcaseBadge}>{badge}</span>
+        <h2>{name}</h2>
       </header>
       <div className={`${styles.specimen} ${expanded ? styles.expanded : ""}`}>
         <Specimen id={id} expanded={expanded} copy={copy} />
       </div>
-      <p className={styles.showcaseCaption}>
-        {expanded
-          ? copy.showcase.liveStates
-          : description}
-      </p>
+
     </section>
   );
 }
 
-function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, children, copy }: {
+function ThemePane({ theme, mode, activeMode, compact, children, copy }: {
   theme: ThemeTokens;
   mode: PaletteMode;
   activeMode: PaletteMode;
-  compare: boolean;
   compact: boolean;
-  onModeChange: (mode: PaletteMode) => void;
   children: ReactNode;
   copy: PreviewCopy;
 }) {
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
   return (
-    <section
-      className="theme-pane"
-      data-active={mode === activeMode || undefined}
-      hidden={!compare && mode !== activeMode}
-      aria-label={copy.theme.preview(copy.modes[mode])}
-    >
-      <header className="theme-pane-header" hidden={!compare}>
-        <strong>{copy.theme.theme(copy.modes[mode], mode === activeMode)}</strong>
-        <StudioButton onClick={() => onModeChange(mode)}>
-          {copy.theme.edit(copy.modes[mode].toLocaleLowerCase("tr"))}
-        </StudioButton>
-      </header>
+    <section className="theme-pane" hidden={mode !== activeMode} aria-label={copy.theme.preview(copy.modes[mode])}>
       <div
         className={`${styles.preview} ${compact ? styles.compact : ""}`}
         data-ds-theme={mode}
@@ -427,65 +303,26 @@ function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, ch
   );
 }
 
-export function Preview({ selected, system, compact, mode, compare, onModeChange, locale }: {
+export function Preview({ selected, system, compact, mode }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   compact: boolean;
   mode: PaletteMode;
-  compare: boolean;
-  onModeChange: (mode: PaletteMode) => void;
-  locale: Locale;
 }) {
-  const copy = previewCopy[locale];
+  const copy = previewCopy;
   const overview = selected === "overview";
   return (
     <>
-      {/* Each context has one tab panel; both theme instances stay mounted. */}
-      <Tabs.Panel value="components" keepMounted className={styles.contextPanel}>
-        <div className={compare ? "theme-comparison" : undefined}>
-          {(["light", "dark"] as const).map((item) => (
-            <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
-              compare={compare} compact={compact} onModeChange={onModeChange} copy={copy}>
-              <div className={styles.previewHeading}>
-                <div>
-                  <p className={styles.eyebrow}>{copy.heading.systemEyebrow(copy.modes[item])}</p>
-                  <h2>{overview ? copy.heading.overview : copy.components[selected].name}</h2>
-                  <p className={styles.intro}>
-                    {overview ? copy.heading.overviewIntro : copy.components[selected].description}
-                  </p>
-                </div>
-                <span className={styles.liveIndicator}><span /> {copy.heading.livePreview}</span>
-              </div>
-              <div className={overview ? styles.grid : undefined}>
-                {(overview ? componentIds : [selected as ComponentId]).map((id, index) => (
-                  <Showcase key={id} id={id} expanded={!overview}
-                    badge={overview ? String(index + 1).padStart(2, "0") : copy.heading.spotlight} copy={copy} />
-                ))}
-              </div>
-            </ThemePane>
-          ))}
-        </div>
-      </Tabs.Panel>
-      <Tabs.Panel value="scenario" keepMounted className={styles.contextPanel}>
-        <div className={compare ? "theme-comparison" : undefined}>
-          {(["light", "dark"] as const).map((item) => (
-            <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
-              compare={compare} compact={compact} onModeChange={onModeChange} copy={copy}>
-              <div className={styles.previewHeading}>
-                <div>
-                  <p className={styles.eyebrow}>{copy.heading.contextEyebrow(copy.modes[item])}</p>
-                  <h2>{copy.heading.scenario}</h2>
-                  <p className={styles.intro}>
-                    {copy.heading.scenarioIntro(copy.modes[mode].toLocaleLowerCase("tr"))}
-                  </p>
-                </div>
-                <span className={styles.liveIndicator}><span /> {copy.heading.livePreview}</span>
-              </div>
-              <WorkspaceSettings copy={copy} />
-            </ThemePane>
-          ))}
-        </div>
-      </Tabs.Panel>
+      {/* Both previews stay mounted so theme changes retain interactive specimen state. */}
+      {(["light", "dark"] as const).map((item) => (
+        <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode} compact={compact} copy={copy}>
+          <div className={overview ? styles.grid : undefined}>
+            {(overview ? componentIds : [selected as ComponentId]).map((id) => (
+              <Showcase key={id} id={id} expanded={!overview} copy={copy} />
+            ))}
+          </div>
+        </ThemePane>
+      ))}
     </>
   );
 }

@@ -16,59 +16,11 @@
   box-sizing: border-box;
 }
 
-.contextPanel[hidden] {
-  display: none;
-}
 
 .preview :where(h2, h3, p) {
   margin: 0;
 }
 
-.previewHeading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.eyebrow {
-  color: var(--studio-color-text-muted);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-}
-
-.previewHeading h2 {
-  margin-top: 7px;
-  font-size: 22px;
-  font-weight: 550;
-  letter-spacing: -0.045em;
-  line-height: 1.3;
-}
-
-.intro {
-  margin-top: 7px !important;
-  color: var(--studio-color-text-muted);
-}
-
-.liveIndicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--studio-color-text-muted);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.liveIndicator > span {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--studio-color-success);
-  box-shadow: 0 0 0 3px var(--studio-color-shadow);
-}
 
 .grid {
   display: grid;
@@ -221,112 +173,15 @@
   letter-spacing: 0;
 }
 
-.workspace {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-gap);
-  padding: var(--ds-padding-y) var(--ds-padding-x);
-  margin: var(--ds-margin);
-  border: var(--ds-border-width) solid var(--ds-border);
-  border-radius: var(--ds-radius);
-  background: var(--ds-background);
-  color: var(--ds-foreground);
-  font-size: var(--ds-font-size);
-  box-shadow: 0 4px 16px #24242b04;
-  overflow: auto;
-}
-
-.workspaceHeader,
-.workspaceFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--ds-gap);
-  padding-block: var(--ds-padding-y);
-}
-
-.workspaceIdentity {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-gap);
-}
-
-.workspaceMark {
-  display: grid;
-  place-items: center;
-  width: 2.7em;
-  height: 2.7em;
-  flex: 0 0 auto;
-  border-radius: var(--ds-radius);
-  background: var(--ds-primary);
-  color: var(--ds-on-primary);
-}
-
-.workspaceHeader h3 {
-  font-size: 1em;
-  font-weight: 550;
-  letter-spacing: -0.025em;
-}
-
-.workspaceHeader p {
-  margin-top: 3px;
-  font-size: 0.8em;
-}
-
-.workspaceBody {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  align-items: start;
-  gap: calc(var(--ds-gap) + 16px);
-  padding-block: var(--ds-padding-y);
-}
-
-.workspaceFields {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: var(--ds-gap);
-}
-
-.preferences {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--ds-gap);
-}
-
-.workspaceFooter {
-  border-top: var(--ds-border-width) solid var(--ds-border);
-}
-
-.saveStatus {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-gap);
-  opacity: 0.65;
-  font-size: 0.8em;
-}
-
-.previewFootnote {
-  margin-top: 22px !important;
-  color: var(--studio-color-text-muted);
-  font-size: 10px;
-  text-align: center;
-}
 
 .compact {
   max-width: 390px;
 }
 
-.compact .grid,
-.compact .workspaceBody {
+.compact .grid {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.compact .previewHeading h2 {
-  font-size: 20px;
-}
 
 .srOnly {
   position: absolute;
@@ -340,8 +195,7 @@
 }
 
 @container (max-width: 540px) {
-  .grid,
-  .workspaceBody {
+  .grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

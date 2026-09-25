@@ -26,7 +26,29 @@
 }
 
 .header {
-  margin-bottom: 32px;
+  margin-bottom: 20px;
+}
+
+.reference {
+  min-width: 0;
+  max-width: 1040px;
+  margin: 20px auto;
+  border-block-start: 1px solid var(--studio-color-border);
+}
+
+.reference > summary {
+  padding-block: 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.reference > summary:focus-visible {
+  outline: var(--studio-focus-ring);
+  outline-offset: var(--studio-focus-ring-offset);
+}
+
+.reference > :not(summary) {
+  margin-bottom: 12px;
 }
 
 .root h2,

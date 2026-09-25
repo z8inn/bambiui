@@ -30,7 +30,8 @@ function checkPalette(palette) {
       meets(tokens.foreground, bg, 4.5);
       meets(tokens.mutedForeground, bg, 4.5);
       meets(tokens.border, bg, 3);
-      meets(tokens.primary, bg, 4.5);
+      meets(tokens.primary, bg, 3);
+      meets(roles.primary.onSubtle, bg, 4.5);
       for (const role of paletteRoles) {
         const colors = roles[role];
         for (const state of ["solid", "hover", "active"]) meets(colors[state], bg, 3);
@@ -88,6 +89,18 @@ test("strict six-digit hex validation across public helpers", () => {
     assert.throws(() => mixColors(value, "#ffffff", 0.5), /six-digit hex/);
     assert.throws(() => mixColors("#ffffff", value, 0.5), /six-digit hex/);
   }
+});
+
+test("brand source remains the light primary fill when dark ink and boundaries are accessible", () => {
+  const palette = generatePalette("#e8673c");
+  assert.equal(palette.light.tokens.primary, palette.source);
+  assert.equal(palette.light.tokens.onPrimary, "#291b15");
+  meets(palette.light.tokens.onPrimary, palette.light.tokens.primary, 4.5);
+  assert.notEqual(palette.light.roles.primary.hover, palette.light.tokens.primary);
+  assert.notEqual(palette.light.roles.primary.active, palette.light.roles.primary.hover);
+  meets(palette.light.roles.primary.onSubtle, palette.light.tokens.background, 4.5);
+  meets(palette.light.roles.primary.onSubtle, palette.light.tokens.muted, 4.5);
+  checkPalette(palette);
 });
 
 test("source is normalized without replacing the user's chromatic seed", () => {

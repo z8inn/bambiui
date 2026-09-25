@@ -54,9 +54,9 @@ export function auditSystemColors(theme: ThemeTokens, mode: PaletteMode = "light
   }
   for (const [role, onRole] of roles) {
     add(`global.${onRole}.${role}`, `${onRole} on ${role}`, g[onRole], g[role]);
-    add(`global.${role}.background`, `${role} text on background`, g[role], g.background);
+    add(`global.${role}.background`, `${role} text on background`, role === "primary" ? v["--ds-primary-on-subtle"] : g[role], g.background);
   }
-  add("global.primary.muted", "Primary link on muted", g.primary, g.muted);
+  add("global.primary.muted", "Primary link on muted", v["--ds-primary-on-subtle"], g.muted);
 
   for (const component of ["button", "input", "switch", "checkbox"] as const) {
     for (const surface of ["background", "muted"] as const) {
@@ -85,7 +85,7 @@ export function auditSystemColors(theme: ThemeTokens, mode: PaletteMode = "light
     if (variant !== "primary") boundary("button", `button.${variant}.boundary`, `Button ${variant} border (all states)`, stroke);
   }
   for (const variant of ["outline", "ghost", "link"]) {
-    const ink = variant === "link" ? g.primary : g.foreground;
+    const ink = variant === "link" ? v["--ds-primary-on-subtle"] : g.foreground;
     add(`button.${variant}.text`, `Button ${variant} text on global surface`, ink, g.background, 4.5, "button");
     for (const state of ["hover", "active"]) {
       add(`button.${variant}.${state}`, `Button ${variant} ${state} text`, ink, variant === "link" ? g.background : g.muted, 4.5, "button");

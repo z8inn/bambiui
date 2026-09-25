@@ -134,8 +134,9 @@ export function deriveRoleColors(
   const surfaces = [background, muted];
   const safeState = (color: string) =>
     against(color, surfaces, 3) && contrastRatio(onSolid, color) >= 4.5;
-  const hover = choose(dark ? 0.78 : 0.48, safeState);
-  const active = choose(dark ? 0.85 : 0.41, safeState);
+  const darkInk = contrastRatio(onSolid, "#ffffff") >= 4.5;
+  const hover = choose(dark ? 0.78 : darkInk ? 0.66 : 0.48, safeState);
+  const active = choose(dark ? 0.85 : darkInk ? 0.65 : 0.41, safeState);
   const subtle = mixColors(solid, background, dark ? 0.18 : 0.1);
   const onSubtle = choose(dark ? 0.75 : 0.48, (color) => against(color, [subtle, background], 4.5));
   const outline = choose(0.62, (color) => against(color, surfaces, 3));
@@ -148,10 +149,10 @@ export function deriveRoleColors(
   return { ...result };
 }
 
-function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Family>): GeneratedTheme {
+function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Family>, source: string): GeneratedTheme {
   const dark = mode === "dark";
   const background = tone(dark ? 0.14 : 0.985, families.neutral);
-  const muted = tone(dark ? 0.22 : 0.95, families.neutral);
+  const muted = tone(dark ? 0.22 : 0.975, families.neutral);
   const surfaces = [background, muted];
   const against = (color: string, backgrounds: string[], minimum: number) =>
     backgrounds.every((bg) => contrastRatio(color, bg) >= minimum);
@@ -166,9 +167,13 @@ function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Fami
   const roles = {} as Record<PaletteRole, RoleColors>;
   for (const role of paletteRoles) {
     const f = families[role];
-    const onSolid = dark ? "#000000" : "#ffffff";
+    // Keep a light brand source as the primary fill when dark ink and the
+    // visible button edge can both meet their targets. Links use onSubtle ink.
+    const sourceIsUsable = role === "primary" && !dark &&
+      against(source, surfaces, 3) && contrastRatio("#291b15", source) >= 4.5;
+    const onSolid = sourceIsUsable ? "#291b15" : dark ? "#000000" : "#ffffff";
     const safeSolid = (color: string) => against(color, surfaces, 4.5) && contrastRatio(onSolid, color) >= 4.5;
-    const solid = choose(f, dark ? 0.7 : 0.55, safeSolid);
+    const solid = sourceIsUsable ? source : choose(f, dark ? 0.7 : 0.55, safeSolid);
     roles[role] = deriveRoleColors(solid, onSolid, background, mode, muted);
   }
   const foreground = choose(families.neutral, dark ? 0.92 : 0.22, (c) => against(c, surfaces, 4.5));
@@ -202,5 +207,5 @@ export function generatePalette(source: string): GeneratedPalette {
   for (const role of [...paletteRoles, "neutral"] as const) {
     scales[role] = stops.map((l) => tone(l, families[role]));
   }
-  return { source, scales, light: theme("light", families), dark: theme("dark", families) };
+  return { source, scales, light: theme("light", families, source), dark: theme("dark", families, source) };
 }
