@@ -13,96 +13,93 @@ import {
   type DesignSystem,
 } from "./tokens";
 import styles from "./developer.module.css";
+import { developerCopy, type NoteKey } from "./developer-copy";
 import type { PaletteMode } from "./color-engine";
+import type { Locale } from "./locale";
 
 export type DeveloperViewProps = {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   mode: PaletteMode;
   cssOutput: string;
+  locale: Locale;
 };
 
-type PropRow = readonly [prop: string, type: string, defaultValue: string, notes: string];
+type PropRow = readonly [prop: string, type: string, defaultValue: string, noteKey: NoteKey];
 
-const size: PropRow = ["size", '"sm" | "md" | "lg"', '"md"', "Shared size scale; density for Card."];
-const content: PropRow = ["children", "ReactNode", "—", "Component content."];
-const className: PropRow = ["className", "string", "—", "Applied to the root; the field wrapper for labelled controls."];
-const icons: PropRow = ["startIcon / endIcon", "ReactNode", "—", "Content before / after the label or value."];
+const size: PropRow = ["size", '"sm" | "md" | "lg"', '"md"', "size"];
+const content: PropRow = ["children", "ReactNode", "—", "content"];
+const className: PropRow = ["className", "string", "—", "className"];
+const icons: PropRow = ["startIcon / endIcon", "ReactNode", "—", "icons"];
 const fields: readonly PropRow[] = [
-  ["label", "ReactNode", "Required", "Visible accessible label."],
-  ["hideLabel", "boolean", "false", "Visually hides the label, retaining its accessible name."],
-  ["description / error", "ReactNode", "—", "Linked helper / error text. A truthy error marks the field invalid."],
+  ["label", "ReactNode", "Required", "label"],
+  ["hideLabel", "boolean", "false", "hideLabel"],
+  ["description / error", "ReactNode", "—", "description"],
   size,
-  ["disabled / readOnly / required", "boolean", "false", "Disable interaction / prevent changes / require a value."],
-  ["name", "string", "—", "Form submission name."],
+  ["disabled / readOnly / required", "boolean", "false", "states"],
+  ["name", "string", "—", "name"],
   className,
 ];
 const choices: readonly PropRow[] = [
   ...fields,
-  ["labelPosition", '"start" | "end"', '"end"', "Side of the control on which the label appears."],
-  ["checked / defaultChecked", "boolean", "Base UI defaults", "Controlled / initial uncontrolled checked state."],
-  ["onCheckedChange", "Base UI callback", "—", "Receives the next checked state and event details."],
-  ["value", "Base UI value prop", "Base UI default", "Form submission value, not the checked state."],
+  ["labelPosition", '"start" | "end"', '"end"', "labelPosition"],
+  ["checked / defaultChecked", "boolean", "Base UI defaults", "checked"],
+  ["onCheckedChange", "Base UI callback", "—", "onCheckedChange"],
+  ["value", "Base UI value prop", "Base UI default", "value"],
 ];
 
 // Keep wrapper-specific defaults aligned with components/ and docs/component-api.md.
 // Inherited props remain delegated to Base UI rather than inventing wrapper defaults.
-const reference: Record<ComponentId, { name: string; props: readonly PropRow[]; note: string }> = {
+const reference: Record<ComponentId, { name: string; props: readonly PropRow[] }> = {
   button: {
     name: "Button",
     props: [
-      ["variant", '"primary" | "secondary" | "outline" | "ghost" | "destructive" | "link"', '"primary"', "Visual hierarchy."],
+      ["variant", '"primary" | "secondary" | "outline" | "ghost" | "destructive" | "link"', '"primary"', "hierarchy"],
       size,
-      ["disabled", "boolean", "false", "Blocks activation."],
-      ["loading", "boolean", "false", "Blocks activation, keeps focus, sets aria-busy and replaces the start icon with a spinner."],
-      ["fullWidth", "boolean", "false", "Stretches to container width."],
-      ["iconOnly", "boolean", "false", "Square icon control; requires aria-label when true. Hides endIcon."],
+      ["disabled", "boolean", "false", "disabled"],
+      ["loading", "boolean", "false", "loading"],
+      ["fullWidth", "boolean", "false", "fullWidth"],
+      ["iconOnly", "boolean", "false", "iconOnly"],
       icons, content, className,
-      ["render", "Base UI render prop", "—", "Base UI element composition."],
+      ["render", "Base UI render prop", "—", "render"],
     ],
-    note: "Also accepts Base UI Button props and native button attributes. An icon-only button must have an aria-label. No tone prop is defined.",
   },
   input: {
     name: "Input",
     props: [
       ...fields,
-      ["type", '"text" | "email" | "password" | "number" | "search" | "tel" | "url"', '"text"', "Native input type."],
-      ["placeholder", "string", "—", "Hint, not a replacement for label."],
-      ["value / defaultValue", "Base UI Input value props", "—", "Controlled / initial uncontrolled value."],
-      ["onValueChange", "Base UI callback", "—", "Receives the next value and event details."],
+      ["type", '"text" | "email" | "password" | "number" | "search" | "tel" | "url"', '"text"', "inputType"],
+      ["placeholder", "string", "—", "placeholder"],
+      ["value / defaultValue", "Base UI Input value props", "—", "inputValue"],
+      ["onValueChange", "Base UI callback", "—", "onValueChange"],
       icons,
     ],
-    note: "Also accepts Base UI Input props except its className, size and type, which the wrapper replaces. Icons are decorative. No variant or tone prop is defined.",
   },
   switch: {
     name: "Switch",
     props: choices,
-    note: "Also accepts Base UI Switch.Root props except className and children. The wrapper supplies the thumb and label; use label rather than children. No variant or tone prop is defined.",
   },
   checkbox: {
     name: "Checkbox",
-    props: [...choices, ["indeterminate", "boolean", "Base UI default", "Displays a mixed-state indicator."]],
-    note: "Also accepts Base UI Checkbox.Root props except className and children. The wrapper supplies the indicator and label; use label rather than children. No variant or tone prop is defined.",
+    props: [...choices, ["indeterminate", "boolean", "Base UI default", "indeterminate"]],
   },
   badge: {
     name: "Badge",
     props: [
-      ["variant", '"solid" | "subtle" | "outline"', '"outline"', "Fill style."],
-      ["tone", '"neutral" | "primary" | "success" | "warning" | "danger" | "info"', '"neutral"', "Semantic color role."],
+      ["variant", '"solid" | "subtle" | "outline"', '"outline"', "fill"],
+      ["tone", '"neutral" | "primary" | "success" | "warning" | "danger" | "info"', '"neutral"', "tone"],
       size,
-      ["dot", "boolean", "false", "Decorative leading status dot; provide meaningful text."],
-      ["startIcon", "ReactNode", "—", "Leading icon content."],
+      ["dot", "boolean", "false", "dot"],
+      ["startIcon", "ReactNode", "—", "startIcon"],
       content, className,
     ],
-    note: "Also accepts native span props. Badge has no endIcon, loading or disabled behavior.",
   },
   card: {
     name: "Card",
     props: [
-      ["variant", '"outlined" | "elevated" | "filled"', '"outlined"', "Surface treatment."],
+      ["variant", '"outlined" | "elevated" | "filled"', '"outlined"', "surface"],
       size, content, className,
     ],
-    note: "Also accepts native article props. Compose Card.Icon (span), Card.Header (div), Card.Title (strong, not a heading), Card.Description (p), Card.Content (div) and Card.Footer (div). Each part accepts its native element props. No tone prop is defined.",
   },
 };
 
@@ -114,7 +111,8 @@ function ScrollRegion({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-function ReactUsage({ selected }: { selected: ComponentId }) {
+function ReactUsage({ selected, locale }: { selected: ComponentId; locale: Locale }) {
+  const copy = developerCopy[locale];
   const source = snippets[selected];
   const highlighted = useMemo(() => highlight(source), [source]);
   const [copyStatus, setCopyStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
@@ -133,7 +131,7 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
   return (
     <section className={styles.section}>
       <div className={styles.codeHeading}>
-        <h3>React usage</h3>
+        <h3>{copy.reactUsage}</h3>
         <Button
           type="button"
           onClick={copyReactCode}
@@ -141,17 +139,17 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
           focusableWhenDisabled
           aria-busy={copyStatus === "pending"}
         >
-          Copy React code
+          {copy.copyReactCode}
         </Button>
       </div>
-      <p>Examples from snippets.ts. Imports refer to this project; this is not a published component package.</p>
+      <p>{copy.reactDescription}</p>
       <p className={styles.copyStatus} role="status" aria-atomic="true">
-        {copyStatus === "pending" && "Copying React code…"}
-        {copyStatus === "success" && "React code copied to clipboard."}
-        {copyStatus === "error" && "Could not copy React code. Select and copy the code below manually."}
+        {copyStatus === "pending" && copy.copying}
+        {copyStatus === "success" && copy.copied}
+        {copyStatus === "error" && copy.copyError}
       </p>
       <div className={styles.reactCode}>
-        <ScrollRegion label={`${reference[selected].name} React usage`}>
+        <ScrollRegion label={copy.usageRegion(reference[selected].name)}>
           <pre className={styles.code}>
             <code dangerouslySetInnerHTML={{ __html: highlighted }} />
           </pre>
@@ -161,7 +159,8 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
   );
 }
 
-export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperViewProps) {
+export function DeveloperView({ selected, system, mode, cssOutput, locale }: DeveloperViewProps) {
+  const copy = developerCopy[locale];
   const component = selected === "overview" ? null : reference[selected];
   const theme = system.themes[mode];
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
@@ -174,54 +173,54 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Developer reference</p>
-        <h2>{component ? component.name : "System tokens"}</h2>
+        <p className={styles.eyebrow}>{copy.developerReference}</p>
+        <h2>{component ? component.name : copy.systemTokens}</h2>
         <p>
           {component
-            ? "React usage, component props and live token inheritance."
-            : "Select a component in the studio to see its React usage and API reference."}
+            ? copy.componentIntro
+            : copy.overviewIntro}
         </p>
-        <p className={styles.systemName}>System: {system.name} · {mode} theme · source {system.themes[mode].source}</p>
+        <p className={styles.systemName}>{copy.system}: {system.name} · {copy.modeName[mode]} {copy.theme} · {copy.source} {system.themes[mode].source}</p>
       </header>
 
       {selected !== "overview" && component && (
         <>
-          <ReactUsage key={selected} selected={selected} />
+          <ReactUsage key={selected} selected={selected} locale={locale} />
           <section className={styles.section}>
-            <h3>Props and defaults</h3>
-            <p>Wrapper API from the component sources and docs/component-api.md. A dash means no wrapper default; inherited Base UI defaults are identified separately.</p>
-            <ScrollRegion label={`${component.name} props and defaults`}>
+            <h3>{copy.propsAndDefaults}</h3>
+            <p>{copy.propsDescription}</p>
+            <ScrollRegion label={copy.propsRegion(component.name)}>
               <table className={styles.table}>
-                <caption>{component.name} prop reference</caption>
-                <thead><tr><th scope="col">Prop</th><th scope="col">Type</th><th scope="col">Default</th><th scope="col">Behavior</th></tr></thead>
+                <caption>{component.name} {copy.propReference}</caption>
+                <thead><tr><th scope="col">{copy.prop}</th><th scope="col">{copy.type}</th><th scope="col">{copy.default}</th><th scope="col">{copy.behavior}</th></tr></thead>
                 <tbody>
-                  {component.props.map(([prop, type, defaultValue, notes]) => (
+                  {component.props.map(([prop, type, defaultValue, noteKey]) => (
                     <tr key={prop}>
                       <th scope="row"><code>{prop}</code></th>
                       <td><code>{type}</code></td>
-                      <td><code>{defaultValue}</code></td>
-                      <td>{notes}</td>
+                      <td><code>{defaultValue === "Required" ? copy.required : defaultValue === "Base UI defaults" ? copy.baseUIDefaults : defaultValue === "Base UI default" ? copy.baseUIDefault : defaultValue}</code></td>
+                      <td>{copy.notes[noteKey]}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </ScrollRegion>
-            <p>{component.note}</p>
+            <p>{copy.componentNotes[selected]}</p>
           </section>
         </>
       )}
 
       <section className={styles.section}>
-        <h3>{component ? "Token inheritance" : "Global token reference"}</h3>
+        <h3>{component ? copy.tokenInheritance : copy.globalTokenReference}</h3>
         <p>
           {component
-            ? "Live base aliases for this component. Overrides replace inheritance, even when equal to the global value. Variants, tones, sizes and states may use additional tokens; these are not computed element styles."
-            : "Current global CSS variables. Numeric token values are exported in pixels."}
+            ? copy.componentTokensDescription
+            : copy.globalTokensDescription}
         </p>
-        <ScrollRegion label={component ? `${component.name} token inheritance` : "Global token reference"}>
+        <ScrollRegion label={component ? copy.tokensRegion(component.name) : copy.globalTokenReference}>
           <table className={styles.table}>
-            <caption>{component ? `${component.name} base token aliases` : "Global CSS variables"}</caption>
-            <thead><tr><th scope="col">{component ? "Alias CSS name" : "CSS name"}</th><th scope="col">Source</th><th scope="col">Resolved value</th></tr></thead>
+            <caption>{component ? `${component.name} ${copy.baseTokenAliases}` : copy.globalCSSVariables}</caption>
+            <thead><tr><th scope="col">{component ? copy.aliasCSSName : copy.cssName}</th><th scope="col">{copy.sourceColumn}</th><th scope="col">{copy.resolvedValue}</th></tr></thead>
             <tbody>
               {tokens.map(([name, declaration]) => {
                 // Follow the exported declaration instead of duplicating token inheritance rules.
@@ -229,7 +228,7 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
                 return (
                   <tr key={name}>
                     <th scope="row"><code>{name}</code></th>
-                    <td>{source ? <><span>Inherited: </span><code>{source}</code></> : component ? "Component override" : "Global value"}</td>
+                    <td>{source ? <><span>{copy.inherited}: </span><code>{source}</code></> : component ? copy.componentOverride : copy.globalValue}</td>
                     <td><code>{source ? variables[source] : declaration}</code></td>
                   </tr>
                 );
@@ -241,12 +240,12 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
 
       {derived.length > 0 && (
         <section className={styles.section}>
-          <h3>Derived colors and system constants</h3>
-          <p>Computed from the {mode} theme’s current values; these are not manual component overrides.</p>
-          <ScrollRegion label="Derived theme variables">
+          <h3>{copy.derivedColors}</h3>
+          <p>{copy.derivedDescription(mode)}</p>
+          <ScrollRegion label={copy.derivedThemeVariables}>
             <table className={styles.table}>
-              <caption>{mode} runtime variables</caption>
-              <thead><tr><th scope="col">CSS variable</th><th scope="col">Value</th></tr></thead>
+              <caption>{copy.modeName[mode]} {copy.runtimeVariables}</caption>
+              <thead><tr><th scope="col">{copy.cssVariable}</th><th scope="col">{copy.valueColumn}</th></tr></thead>
               <tbody>{derived.map(([name, value]) => (
                 <tr key={name}><th scope="row"><code>{name}</code></th><td><code>{value}</code></td></tr>
               ))}</tbody>
@@ -255,11 +254,11 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
         </section>
       )}
       <section className={styles.section}>
-        <h3>CSS variable export</h3>
-        <p>Both themes, including aliases, derived state colors and system constants. Light is the root default; set <code>{'data-ds-theme="dark"'}</code> on your theme container for dark mode. Component markup and style rules are not included.</p>
+        <h3>{copy.cssVariableExport}</h3>
+        <p>{copy.exportBeforeCode}<code>{'data-ds-theme="dark"'}</code>{copy.exportAfterCode}</p>
         <details className={styles.export}>
-          <summary>Show full-system CSS variables</summary>
-          <ScrollRegion label="Full-system CSS variable export">
+          <summary>{copy.showFullSystem}</summary>
+          <ScrollRegion label={copy.fullSystemExport}>
             <pre className={styles.code}><code>{cssOutput}</code></pre>
           </ScrollRegion>
         </details>

@@ -20,6 +20,8 @@ import {
 import { Icon } from "./icons";
 import { Button as StudioButton } from "./controls";
 import type { PaletteMode } from "./color-engine";
+import type { Locale } from "./locale";
+import { previewCopy, type PreviewCopy } from "./preview-copy";
 
 import {
   componentIds,
@@ -30,35 +32,15 @@ import {
 } from "./tokens";
 import styles from "./preview.module.css";
 
-const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
-
-const componentMeta: Record<
-  ComponentId,
-  { name: string; description: string }
-> = {
-  button: {
-    name: "Button",
-    description: "A little nudge to take the next step.",
-  },
-  input: { name: "Input", description: "Make room for a good idea." },
-  card: {
-    name: "Card",
-    description: "A home for things that belong together.",
-  },
-  badge: { name: "Badge", description: "Small details. Just enough context." },
-  switch: { name: "Switch", description: "A simple choice, on or off." },
-  checkbox: {
-    name: "Checkbox",
-    description: "Keep the important things in check.",
-  },
-};
 
 function DemoButton({
-  children = "Get started",
+  children,
   disabled = false,
+  copy,
 }: {
   children?: ReactNode;
   disabled?: boolean;
+  copy: PreviewCopy;
 }) {
   const [clicks, setClicks] = useState(0);
   return (
@@ -68,48 +50,48 @@ function DemoButton({
         onClick={() => setClicks((count) => count + 1)}
         endIcon={<Icon name={clicks ? "check" : "arrow"} />}
       >
-        {clicks ? "All set" : children}
+        {clicks ? copy.demo.allSet : children ?? copy.demo.getStarted}
       </Button>
       <span className={styles.srOnly} role="status">
-        {clicks > 0 ? `Demo action completed successfully (${clicks}).` : ""}
+        {clicks > 0 ? copy.demo.completed(clicks) : ""}
       </span>
     </div>
   );
 }
 
-function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
+function Specimen({ id, expanded, copy }: { id: ComponentId; expanded: boolean; copy: PreviewCopy }) {
   switch (id) {
     case "button":
       if (!expanded)
         return (
           <div className={styles.states}>
-            <DemoButton />
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="ghost">Ghost</Button>
+            <DemoButton copy={copy} />
+            <Button variant="secondary">{copy.button.secondary}</Button>
+            <Button variant="ghost">{copy.button.ghost}</Button>
           </div>
         );
       return (
         <div className={styles.rows}>
           <div className={styles.states}>
-            <DemoButton />
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="outline">Outline</Button>
-            <Button variant="ghost">Ghost</Button>
-            <Button variant="destructive">Delete</Button>
-            <Button variant="link">Learn more</Button>
+            <DemoButton copy={copy} />
+            <Button variant="secondary">{copy.button.secondary}</Button>
+            <Button variant="outline">{copy.button.outline}</Button>
+            <Button variant="ghost">{copy.button.ghost}</Button>
+            <Button variant="destructive">{copy.button.delete}</Button>
+            <Button variant="link">{copy.button.learnMore}</Button>
           </div>
           <div className={styles.states}>
-            <Button size="sm">Small</Button>
-            <Button size="md">Medium</Button>
-            <Button size="lg">Large</Button>
-            <Button variant="outline" iconOnly aria-label="Add item">
+            <Button size="sm">{copy.button.small}</Button>
+            <Button size="md">{copy.button.medium}</Button>
+            <Button size="lg">{copy.button.large}</Button>
+            <Button variant="outline" iconOnly aria-label={copy.button.addItem}>
               <Icon name="plus" />
             </Button>
           </div>
           <div className={styles.states}>
-            <Button startIcon={<Icon name="download" />}>Download</Button>
-            <Button loading>Saving</Button>
-            <DemoButton disabled>Disabled</DemoButton>
+            <Button startIcon={<Icon name="download" />}>{copy.button.download}</Button>
+            <Button loading>{copy.button.saving}</Button>
+            <DemoButton copy={copy} disabled>{copy.button.disabled}</DemoButton>
           </div>
         </div>
       );
@@ -117,37 +99,37 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
       return (
         <div className={styles.inputStates}>
           <Input
-            label="Email address"
+            label={copy.input.email}
             type="email"
             placeholder="you@example.com"
-            description={expanded ? "We only use it for receipts." : undefined}
+            description={expanded ? copy.input.receipts : undefined}
           />
           {expanded && (
             <>
               <Input
-                label="Search"
+                label={copy.input.search}
                 hideLabel
                 type="search"
                 size="sm"
-                placeholder="Search components…"
+                placeholder={copy.input.searchPlaceholder}
                 startIcon={<Icon name="search" />}
               />
               <Input
-                label="Workspace URL"
+                label={copy.input.url}
                 type="url"
                 defaultValue="studio"
-                error="Enter a full URL, including https://"
+                error={copy.input.urlError}
               />
               <Input
-                label="Read-only workspace email"
+                label={copy.input.readOnlyEmail}
                 defaultValue="hello@studio.design"
                 readOnly
               />
-              <Input label="Unavailable" size="lg" disabled defaultValue="—" />
+              <Input label={copy.input.unavailable} size="lg" disabled defaultValue="—" />
               <div className={styles.sizeGroup}>
-                <Input label="Small" size="sm" placeholder="size=&quot;sm&quot;" />
-                <Input label="Medium" size="md" placeholder="size=&quot;md&quot;" />
-                <Input label="Large" size="lg" placeholder="size=&quot;lg&quot;" />
+                <Input label={copy.button.small} size="sm" placeholder="size=&quot;sm&quot;" />
+                <Input label={copy.button.medium} size="md" placeholder="size=&quot;md&quot;" />
+                <Input label={copy.button.large} size="lg" placeholder="size=&quot;lg&quot;" />
               </div>
             </>
           )}
@@ -161,9 +143,9 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
               <Icon name="spark" />
             </Card.Icon>
             <Card.Header>
-              <Card.Title>Make something great</Card.Title>
+              <Card.Title>{copy.card.make}</Card.Title>
               <Card.Description>
-                Good design starts with a few thoughtful details.
+                {copy.card.makeDescription}
               </Card.Description>
             </Card.Header>
           </Card>
@@ -174,23 +156,23 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
                   <Icon name="plus" />
                 </Card.Icon>
                 <Card.Header>
-                  <Card.Title>Space to explore</Card.Title>
+                  <Card.Title>{copy.card.explore}</Card.Title>
                   <Card.Description>
-                    Your next idea starts right here.
+                    {copy.card.exploreDescription}
                   </Card.Description>
                 </Card.Header>
                 <Card.Footer>
-                  <Button size="sm">Start</Button>
+                  <Button size="sm">{copy.card.start}</Button>
                   <Button size="sm" variant="ghost">
-                    Later
+                    {copy.card.later}
                   </Button>
                 </Card.Footer>
               </Card>
               <Card variant="filled" size="sm">
                 <Card.Header>
-                  <Card.Title>Filled, small</Card.Title>
+                  <Card.Title>{copy.card.filled}</Card.Title>
                   <Card.Description>
-                    A quieter surface for secondary content.
+                    {copy.card.filledDescription}
                   </Card.Description>
                 </Card.Header>
               </Card>
@@ -214,47 +196,47 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
                 ] as const
               ).map((tone) => (
                 <Badge key={tone} variant={variant} tone={tone}>
-                  {title(tone)}
+                  {copy.tones[tone]}
                 </Badge>
               ))}
             </div>
           ))}
           <div className={styles.states}>
             <Badge size="sm" dot tone="success">
-              Small
+              {copy.button.small}
             </Badge>
             <Badge dot tone="success">
-              Medium
+              {copy.button.medium}
             </Badge>
             <Badge size="lg" dot tone="success">
-              Large
+              {copy.button.large}
             </Badge>
           </div>
         </div>
       ) : (
         <div className={styles.states}>
-          <Badge dot>Published</Badge>
-          <Badge variant="subtle">Draft</Badge>
+          <Badge dot>{copy.badge.published}</Badge>
+          <Badge variant="subtle">{copy.badge.draft}</Badge>
           <Badge variant="subtle" tone="success" dot>
-            Live
+            {copy.badge.live}
           </Badge>
         </div>
       );
     case "switch":
       return (
         <div className={styles.toggleStates}>
-          <Switch label="Notifications" defaultChecked />
-          <Switch label="Focus mode" />
+          <Switch label={copy.switch.notifications} defaultChecked />
+          <Switch label={copy.switch.focus} />
           {expanded && (
             <>
               <Switch
-                label="Auto-save"
-                description="Saves every change as you go."
+                label={copy.switch.autoSave}
+                description={copy.switch.autoSaveDescription}
                 size="lg"
                 defaultChecked
               />
-              <Switch label="Compact rows" size="sm" labelPosition="start" />
-              <Switch label="Unavailable" disabled />
+              <Switch label={copy.switch.compact} size="sm" labelPosition="start" />
+              <Switch label={copy.input.unavailable} disabled />
             </>
           )}
         </div>
@@ -262,18 +244,18 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
     case "checkbox":
       return (
         <div className={styles.toggleStates}>
-          <Checkbox label="Include the details" defaultChecked />
-          <Checkbox label="Keep me in the loop" />
+          <Checkbox label={copy.checkbox.details} defaultChecked />
+          <Checkbox label={copy.checkbox.loop} />
           {expanded && (
             <>
-              <Checkbox label="Select all" indeterminate />
+              <Checkbox label={copy.checkbox.selectAll} indeterminate />
               <Checkbox
-                label="I accept the terms"
+                label={copy.checkbox.terms}
                 required
-                error="Please accept the terms to continue."
+                error={copy.checkbox.termsError}
               />
-              <Checkbox label="Small print" size="sm" />
-              <Checkbox label="Unavailable" disabled defaultChecked />
+              <Checkbox label={copy.checkbox.smallPrint} size="sm" />
+              <Checkbox label={copy.input.unavailable} disabled defaultChecked />
             </>
           )}
         </div>
@@ -281,7 +263,7 @@ function Specimen({ id, expanded }: { id: ComponentId; expanded: boolean }) {
   }
 }
 
-function WorkspaceSettings() {
+function WorkspaceSettings({ copy }: { copy: PreviewCopy }) {
   const titleId = useId();
   const [workspace, setWorkspace] = useState("Acme Studio");
   const [saves, setSaves] = useState(0);
@@ -291,8 +273,8 @@ function WorkspaceSettings() {
   return (
     <section className={styles.context} aria-labelledby={titleId}>
       <div className={styles.sectionHeading}>
-        <span>IN CONTEXT</span>
-        <span className={styles.sectionHint}>The little things, together</span>
+        <span>{copy.workspace.inContext}</span>
+        <span className={styles.sectionHint}>{copy.workspace.hint}</span>
       </div>
       <form
         className={styles.workspace}
@@ -308,20 +290,20 @@ function WorkspaceSettings() {
               <Icon name="spark" size="1.15em" />
             </span>
             <div>
-              <h3 id={titleId}>Workspace settings</h3>
+              <h3 id={titleId}>{copy.workspace.settings}</h3>
               <p className={styles.muted}>
-                A small space for your next big thing.
+                {copy.workspace.subtitle}
               </p>
             </div>
           </div>
           <Badge variant="subtle" tone="primary">
-            Pro plan
+            {copy.workspace.plan}
           </Badge>
         </div>
         <div className={styles.workspaceBody}>
           <div className={styles.workspaceFields}>
             <Input
-              label="Workspace name"
+              label={copy.workspace.name}
               name="workspace"
               required
               value={workspace}
@@ -332,12 +314,12 @@ function WorkspaceSettings() {
             />
             <div className={styles.preferences}>
               <Switch
-                label="Email notifications"
+                label={copy.workspace.emailNotifications}
                 defaultChecked
                 onCheckedChange={markChanged}
               />
               <Checkbox
-                label="Send me a weekly summary"
+                label={copy.workspace.weeklySummary}
                 defaultChecked
                 onCheckedChange={markChanged}
               />
@@ -347,13 +329,12 @@ function WorkspaceSettings() {
             <Card.Icon>
               <Icon name="spark" />
             </Card.Icon>
-            <Card.Title>A little more you.</Card.Title>
+            <Card.Title>{copy.workspace.cardTitle}</Card.Title>
             <Card.Description>
-              Your colors, your rhythm. One system that makes every detail feel
-              at home.
+              {copy.workspace.cardDescription}
             </Card.Description>
             <Badge dot tone="success" variant="subtle">
-              All connected
+              {copy.workspace.connected}
             </Badge>
           </Card>
         </div>
@@ -361,18 +342,17 @@ function WorkspaceSettings() {
           <p className={styles.saveStatus} role="status">
             {saved ? (
               <>
-                <Icon name="check" size="1.15em" /> Saved locally in this
-                preview · {saves}
+                <Icon name="check" size="1.15em" /> {copy.workspace.saved(saves)}
               </>
             ) : (
-              "Make it yours. Try a few changes."
+              copy.workspace.prompt
             )}
           </p>
           <Button
             type="submit"
             endIcon={<Icon name={saved ? "check" : "arrow"} />}
           >
-            {saved ? "Changes saved" : "Save changes"}
+            {saved ? copy.workspace.changesSaved : copy.workspace.saveChanges}
           </Button>
         </div>
       </form>
@@ -385,32 +365,34 @@ function Showcase({
   id,
   expanded,
   badge,
+  copy,
 }: {
   id: ComponentId;
   expanded: boolean;
   badge: string;
+  copy: PreviewCopy;
 }) {
-  const { name, description } = componentMeta[id];
+  const { name, description } = copy.components[id];
 
   return (
-    <section className={styles.showcase} aria-label={`${name} preview`}>
+    <section className={styles.showcase} aria-label={copy.showcase.preview(name)}>
       <header className={styles.showcaseHeader}>
         <h3>{name}</h3>
         <span className={styles.showcaseBadge}>{badge}</span>
       </header>
       <div className={`${styles.specimen} ${expanded ? styles.expanded : ""}`}>
-        <Specimen id={id} expanded={expanded} />
+        <Specimen id={id} expanded={expanded} copy={copy} />
       </div>
       <p className={styles.showcaseCaption}>
         {expanded
-          ? "Live states · Try the controls to see how they feel."
+          ? copy.showcase.liveStates
           : description}
       </p>
     </section>
   );
 }
 
-function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, children }: {
+function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, children, copy }: {
   theme: ThemeTokens;
   mode: PaletteMode;
   activeMode: PaletteMode;
@@ -418,6 +400,7 @@ function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, ch
   compact: boolean;
   onModeChange: (mode: PaletteMode) => void;
   children: ReactNode;
+  copy: PreviewCopy;
 }) {
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
   return (
@@ -425,12 +408,12 @@ function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, ch
       className="theme-pane"
       data-active={mode === activeMode || undefined}
       hidden={!compare && mode !== activeMode}
-      aria-label={`${title(mode)} preview`}
+      aria-label={copy.theme.preview(copy.modes[mode])}
     >
       <header className="theme-pane-header" hidden={!compare}>
-        <strong>{title(mode)} theme{mode === activeMode ? " · editing" : ""}</strong>
+        <strong>{copy.theme.theme(copy.modes[mode], mode === activeMode)}</strong>
         <StudioButton onClick={() => onModeChange(mode)}>
-          Edit {mode} theme
+          {copy.theme.edit(copy.modes[mode].toLocaleLowerCase("tr"))}
         </StudioButton>
       </header>
       <div
@@ -444,14 +427,16 @@ function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, ch
   );
 }
 
-export function Preview({ selected, system, compact, mode, compare, onModeChange }: {
+export function Preview({ selected, system, compact, mode, compare, onModeChange, locale }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   compact: boolean;
   mode: PaletteMode;
   compare: boolean;
   onModeChange: (mode: PaletteMode) => void;
+  locale: Locale;
 }) {
+  const copy = previewCopy[locale];
   const overview = selected === "overview";
   return (
     <>
@@ -460,21 +445,21 @@ export function Preview({ selected, system, compact, mode, compare, onModeChange
         <div className={compare ? "theme-comparison" : undefined}>
           {(["light", "dark"] as const).map((item) => (
             <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
-              compare={compare} compact={compact} onModeChange={onModeChange}>
+              compare={compare} compact={compact} onModeChange={onModeChange} copy={copy}>
               <div className={styles.previewHeading}>
                 <div>
-                  <p className={styles.eyebrow}>{item.toUpperCase()} · YOUR SYSTEM, IN ACTION</p>
-                  <h2>{overview ? "Small pieces. Endless possibilities." : componentMeta[selected].name}</h2>
+                  <p className={styles.eyebrow}>{copy.heading.systemEyebrow(copy.modes[item])}</p>
+                  <h2>{overview ? copy.heading.overview : copy.components[selected].name}</h2>
                   <p className={styles.intro}>
-                    {overview ? "A living collection, shaped by your design decisions." : componentMeta[selected].description}
+                    {overview ? copy.heading.overviewIntro : copy.components[selected].description}
                   </p>
                 </div>
-                <span className={styles.liveIndicator}><span /> Live preview</span>
+                <span className={styles.liveIndicator}><span /> {copy.heading.livePreview}</span>
               </div>
               <div className={overview ? styles.grid : undefined}>
                 {(overview ? componentIds : [selected as ComponentId]).map((id, index) => (
                   <Showcase key={id} id={id} expanded={!overview}
-                    badge={overview ? String(index + 1).padStart(2, "0") : "COMPONENT SPOTLIGHT"} />
+                    badge={overview ? String(index + 1).padStart(2, "0") : copy.heading.spotlight} copy={copy} />
                 ))}
               </div>
             </ThemePane>
@@ -485,18 +470,18 @@ export function Preview({ selected, system, compact, mode, compare, onModeChange
         <div className={compare ? "theme-comparison" : undefined}>
           {(["light", "dark"] as const).map((item) => (
             <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
-              compare={compare} compact={compact} onModeChange={onModeChange}>
+              compare={compare} compact={compact} onModeChange={onModeChange} copy={copy}>
               <div className={styles.previewHeading}>
                 <div>
-                  <p className={styles.eyebrow}>{item.toUpperCase()} · YOUR SYSTEM, IN CONTEXT</p>
-                  <h2>One system. A real workspace.</h2>
+                  <p className={styles.eyebrow}>{copy.heading.contextEyebrow(copy.modes[item])}</p>
+                  <h2>{copy.heading.scenario}</h2>
                   <p className={styles.intro}>
-                    All six components share this theme. Changes in the inspector affect the {mode} theme only.
+                    {copy.heading.scenarioIntro(copy.modes[mode].toLocaleLowerCase("tr"))}
                   </p>
                 </div>
-                <span className={styles.liveIndicator}><span /> Live preview</span>
+                <span className={styles.liveIndicator}><span /> {copy.heading.livePreview}</span>
               </div>
-              <WorkspaceSettings />
+              <WorkspaceSettings copy={copy} />
             </ThemePane>
           ))}
         </div>

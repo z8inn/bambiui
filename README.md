@@ -13,7 +13,8 @@ A local-first design system playground built with Next.js, Tailwind CSS v4, and 
 - Customize Button, Input, Card, Badge, Switch, and Checkbox independently. Component tokens inherit global values until overridden; reset an override to reconnect it.
 - **Design** view: compare component variants, sizes and states, or switch to **Scenario** to try a workspace settings form built with all six components. Preview surfaces follow your background and foreground tokens; editor chrome stays independent.
 - **Develop** view: inspect React usage, props/defaults, live token inheritance and overrides, and the full-system CSS variable export. Examples reference this project's components, not a published package.
-- Both views share the selected component and token inspector. Switching views or preview contexts preserves mounted demo state; the compact mobile-width canvas setting is retained.
+- Both views share the selected component and token inspector. Switching views, preview contexts or UI language preserves mounted demo state; the compact mobile-width canvas setting is retained.
+- **Language** in the header switches the studio UI and accessible names between English (default) and Turkish, updating the document language. This session-only setting does not alter design tokens, CSS/JSON export identifiers, code examples or the saved schema; it does not add localized routes or metadata.
 - Changes are saved in this browser using localStorage. No account, server storage, or cross-device sync is included.
 - Export both themes as CSS custom properties, including derived state colors and system constants, or as a version 3 JSON backup. Component markup and style rules are not included.
 - Import a JSON backup to restore a system. Imports are validated before replacing your draft. Version 1/2 backups and saved drafts are upgraded to version 3: existing values and overrides are copied independently into both themes without recoloring. Version 1 additions use historical defaults. Regenerate a theme explicitly if you want new accessible colors.
@@ -57,14 +58,14 @@ Social images need an absolute URL. Set `NEXT_PUBLIC_SITE_URL` to the production
 Run with Node.js 22.6+ (Node.js 22.13+ recommended):
 
 ```bash
-node --experimental-strip-types --test app/studio/tokens.test.mjs app/studio/color-engine.test.mjs app/studio/color-audit.test.mjs
+node --experimental-strip-types --test app/studio/*.test.mjs
 ```
 
-The tests cover inheritance, component isolation, CSS/JSON compatibility, invalid imports, deterministic palette generation, gamut and semantic hue preservation, contrast thresholds, modeled component mixes and CLI output.
+The tests cover inheritance, component isolation, CSS/JSON compatibility, invalid imports, deterministic palette generation, gamut and semantic hue preservation, contrast thresholds, modeled component mixes, CLI output and translation dictionary parity.
 
 ## Studio smoke tests
 
-After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context state retention, independent themes and sources, editor/system appearance, computed component contrast, keyboard/AX semantics, reduced motion, generation/application, manual warnings, CSS/JSON exports and responsive reflow. Zoom checks use CSS scaling and effective viewport/DPR emulation, not native browser zoom. Add `--screenshots` to capture light/dark palette previews in `.next/color-review/`. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
+After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context/language state retention, independent themes and sources, editor/system appearance, computed component contrast, keyboard/AX semantics, reduced motion, generation/application, manual warnings, CSS/JSON exports and responsive reflow in Turkish and English. Zoom checks use CSS scaling and effective viewport/DPR emulation, not native browser zoom. Add `--screenshots` to capture light/dark palette previews in `.next/color-review/`. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
 
 See [docs/roadmap.md](docs/roadmap.md) for staged scope, validation results and remaining accessibility work.
 

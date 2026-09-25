@@ -837,6 +837,48 @@ try {
     }
   });
   await stage3Themes();
+  await check('stage4: language switching preserves design, builder draft and scenario state', async () => {
+    await send('Emulation.setDeviceMetricsOverride', {width:1440,height:950,deviceScaleFactor:1,mobile:false});
+    await choose(outer('Design'));
+    await choose(inner('Scenario'));
+    await click(themeControl('Dark'));
+    await stage2Type(workspace,'Locale test workspace');
+    await click(named('.editor-scope button','Global tokens'));
+    await stage2Type(sourceInput,'#abcdef');
+    const before=await stored();
+    await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value='tr';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await wait(`document.documentElement.lang === 'tr' && !!document.querySelector('[aria-label="Çalışma alanı görünümü"]')`);
+    assert.equal(await evaluate(`${q(workspace)}.value`),'Locale test workspace');
+    assert.equal(await evaluate(`${q(sourceInput)}.value`),'#abcdef');
+    assert.deepEqual(await stored(),before);
+    assert.ok(await evaluate(`${q('[aria-label="Tasarım teması"]')}.textContent.includes('Koyu')`));
+    await choose(tab('Çalışma alanı görünümü','Geliştirme'));
+    assert.ok(await evaluate(`document.querySelector('.workspace-panel:not([hidden])')?.textContent.includes('Geliştirici başvuru kılavuzu')`));
+    await choose(tab('Çalışma alanı görünümü','Tasarım'));
+    await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value='en';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await wait(`document.documentElement.lang === 'en' && !!document.querySelector('[aria-label="Workspace view"]')`);
+    assert.equal(await evaluate(`${q(workspace)}.value`),'Locale test workspace');
+    assert.equal(await evaluate(`${q(sourceInput)}.value`),'#abcdef');
+    assert.deepEqual(await stored(),before);
+  });
+  await check('stage4: Turkish 375px reflow, contrast report and accessible labels in both themes', async () => {
+    await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value='tr';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await wait(`document.documentElement.lang === 'tr'`);
+    await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:false});
+    for(const [mode,label] of [['light','Açık'],['dark','Koyu']]) {
+      await click(named('[aria-label="Tasarım teması"] button',label));
+      for(const [view,name] of [['design','Tasarım'],['develop','Geliştirme']]) {
+        await choose(tab('Çalışma alanı görünümü',name));
+        await wait('document.documentElement.scrollWidth <= 375 && document.body.scrollWidth <= 375',`tr/${mode}/${view} overflow`);
+        await capture(`stage4-tr-${mode}-${view}`);
+      }
+    }
+    await choose(tab('Çalışma alanı görünümü','Tasarım'));
+    const {nodes}=await send('Accessibility.getFullAXTree');
+    for(const name of ['Dil','Tasarım teması','Çalışma alanı görünümü']) assert.ok(nodes.some(n=>!n.ignored && n.name?.value===name),`missing Turkish AX name ${name}`);
+    await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value='en';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await wait(`document.documentElement.lang === 'en'`);
+  });
   await check('no browser console/runtime/resource errors', async () => {
     await delay(250);
     assert.deepEqual(browserErrors, []);

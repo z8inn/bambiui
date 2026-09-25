@@ -11,6 +11,7 @@ import { DeveloperView } from "./developer";
 import { ColorBuilder, ContrastReport } from "./color-builder";
 import { EditorThemeControl } from "./editor-theme";
 import type { PaletteMode } from "./color-engine";
+import { copy as studioStrings, type Locale } from "./locale";
 import {
   componentIds,
   defaultSystem,
@@ -32,7 +33,6 @@ type Selection = "overview" | ComponentId;
 type Scope = "global" | "component";
 type View = "design" | "develop";
 type PreviewContext = "components" | "scenario";
-const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 
 function isValidToken(field: TokenField, text: string) {
@@ -52,13 +52,17 @@ function TokenControl({
   overridden,
   onChange,
   onReset,
+  locale,
 }: {
+  locale: Locale;
   field: TokenField;
   value: string | number;
   overridden?: boolean;
   onChange: (value: string | number) => void;
   onReset: () => void;
 }) {
+  const t = studioStrings[locale];
+  const label = t.tokenLabels[field.key];
   const [draft, setDraft] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isColor = field.type === "color";
@@ -71,14 +75,14 @@ function TokenControl({
           htmlFor={`token-${field.key}`}
           className="text-[12px] studio-text-secondary"
         >
-          {field.label}
+          {label}
         </label>
         {overridden === true && (
           <button
             type="button"
             className="inherit-button"
-            aria-label={`Reset ${field.label.toLowerCase()} override`}
-            title="Reset to global token"
+            aria-label={t.resetOverride(label)}
+            title={t.resetTip}
             onClick={() => {
               setDraft(null);
               onReset();
@@ -87,13 +91,13 @@ function TokenControl({
             }}
           >
             <Icon name="reset" size={11} />
-            Override
+            {t.override}
           </button>
         )}
         {overridden === false && (
-          <span className="inherit-button" title="Inherited from global tokens">
+          <span className="inherit-button" title={t.inheritedTip}>
             <Icon name="link" size={11} />
-            Global
+            {t.inherited}
           </span>
         )}
       </div>
@@ -101,7 +105,7 @@ function TokenControl({
         {isColor && (
           <input
             type="color"
-            aria-label={`${field.label} color picker`}
+            aria-label={t.colorPicker(label)}
             value={String(value)}
             onChange={(event) => {
               setDraft(null);
@@ -134,7 +138,7 @@ function TokenControl({
         <input
           className="token-range"
           type="range"
-          aria-label={`${field.label} slider`}
+          aria-label={t.slider(label)}
           min={field.min}
           max={field.max}
           value={Number(value)}
@@ -147,8 +151,8 @@ function TokenControl({
       {!valid && (
         <p className="text-[10px] studio-text-danger" id={`error-${field.key}`}>
           {isColor
-            ? "Use a six-digit hex color."
-            : `Use a value from ${field.min} to ${field.max}.`}
+            ? t.invalidColor
+            : t.invalidNumber(field.min!, field.max!)}
         </p>
       )}
     </div>
@@ -167,11 +171,18 @@ export default function Studio() {
   const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
   const [compareThemes, setCompareThemes] = useState(false);
   const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
-  const [status, setStatus] = useState("Loading local draft…");
-  const [notice, setNotice] = useState("");
+  const [locale, setLocale] = useState<Locale>("en");
+  const t = studioStrings[locale];
+  const [status, setStatus] = useState<"loading" | "saved" | "draft" | "unsaved">("loading");
+  const [notice, setNotice] = useState<"" | "loadError" | "storageError" | "imported" | "importError">("");
+  const [importError, setImportError] = useState<"fileSize" | "invalidJson">("invalidJson");
   const [format, setFormat] = useState<"css" | "json">("css");
   const [copyStatus, setCopyStatus] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,12 +192,10 @@ export default function Studio() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) setSystem(parseDesignSystem(saved));
-        setStatus(saved ? "Saved locally" : "Local draft");
+        setStatus(saved ? "saved" : "draft");
       } catch {
-        setStatus("Local draft");
-        setNotice(
-          "Your saved draft could not be loaded. A fresh workspace is ready; export a backup before leaving.",
-        );
+        setStatus("draft");
+        setNotice("loadError");
       }
       setReady(true);
     });
@@ -199,12 +208,10 @@ export default function Studio() {
     setSystem(next);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      setStatus("Saved locally");
+      setStatus("saved");
     } catch {
-      setStatus("Not saved");
-      setNotice(
-        "Browser storage is unavailable. Export your design system to keep a copy.",
-      );
+      setStatus("unsaved");
+      setNotice("storageError");
     }
   }
 
@@ -258,9 +265,9 @@ export default function Studio() {
   async function copy() {
     try {
       await navigator.clipboard.writeText(output);
-      setCopyStatus("Copied to clipboard");
+      setCopyStatus("copied");
     } catch {
-      setCopyStatus("Clipboard unavailable. Use Download instead.");
+      setCopyStatus("clipboardError");
     }
   }
 
@@ -280,20 +287,20 @@ export default function Studio() {
   return (
     <div className="studio-shell">
       <a className="skip-link" href="#workspace">
-        Skip to workspace
+        {t.skip}
       </a>
       <header className="studio-header">
-        <Link href="/" className="brand" aria-label="bambiui home">
+        <Link href="/" className="brand" aria-label={t.home}>
           <span className="brand-mark">
             <BrandMark size={24} />
           </span>
           bambi<span className="brand-ui">ui</span>
-          <span className="beta-tag">BETA</span>
+          <span className="beta-tag">{t.beta}</span>
         </Link>
         <div className="project-name">
           <span className="studio-text-muted">/</span>
           <input
-            aria-label="Design system name"
+            aria-label={t.name}
             maxLength={80}
             disabled={!ready}
             value={system.name}
@@ -301,51 +308,57 @@ export default function Studio() {
               update({ ...system, name: event.target.value })
             }
           />
-          <span className="draft-tag">Draft</span>
+          <span className="draft-tag">{t.draftTag}</span>
         </div>
         <div className="header-actions">
-          <EditorThemeControl />
+          <EditorThemeControl locale={locale} />
+          <label className="language-control">
+            <span className="sr-only">{t.language}</span>
+            <select aria-label={t.language} value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
+              <option value="en">English</option>
+              <option value="tr">Türkçe</option>
+            </select>
+          </label>
           <span className="save-status">
             <span
-              className={`status-dot ${status === "Not saved" ? "warning" : ""}`}
+              className={`status-dot ${status === "unsaved" ? "warning" : ""}`}
             />
-            {status}
+            {t[status]}
           </span>
           <Button
-            aria-label="Import design system"
+            aria-label={t.importAria}
             disabled={!ready}
             startIcon={<Icon name="upload" />}
             onClick={() => importRef.current?.click()}
           >
-            Import
+            {t.import}
           </Button>
           <input
             ref={importRef}
             className="hidden"
             type="file"
             accept=".json,application/json"
-            aria-label="Import design system JSON"
+            aria-label={t.importJson}
             onChange={async (event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
               if (!file) return;
               try {
                 if (file.size > 100_000)
-                  throw new Error("The file must be smaller than 100 KB.");
+                  throw new Error(t.fileSize);
                 const imported = parseDesignSystem(await file.text());
                 if (
                   !window.confirm(
-                    "Replace the current design system with this file?",
+                    t.replace,
                   )
                 )
                   return;
                 update(imported);
                 setWorkspaceRevision((revision) => revision + 1);
-                setNotice("Design system imported successfully. Both themes are ready.");
+                setNotice("imported");
               } catch (error) {
-                setNotice(
-                  `Import failed: ${error instanceof Error ? error.message : "Invalid JSON file."}`,
-                );
+                setImportError(error instanceof Error && error.message === t.fileSize ? "fileSize" : "invalidJson");
+                setNotice("importError");
               }
             }}
           />
@@ -357,24 +370,24 @@ export default function Studio() {
                   startIcon={<Icon name="download" />}
                 />
               }
-              aria-label="Export tokens"
+              aria-label={t.export}
               disabled={!ready}
             >
-              Export tokens
+              {t.export}
             </Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Backdrop className="studio-backdrop" />
               <Dialog.Popup className="export-dialog">
                 <div className="flex items-center justify-between">
                   <Dialog.Title className="text-lg font-semibold">
-                    Take your system with you.
+                    {t.exportTitle}
                   </Dialog.Title>
                   <Dialog.Close
                     render={
                       <Button
                         variant="ghost"
                         iconOnly
-                        aria-label="Close export dialog"
+                        aria-label={t.closeExport}
                       />
                     }
                   >
@@ -382,13 +395,11 @@ export default function Studio() {
                   </Dialog.Close>
                 </div>
                 <Dialog.Description className="mt-2 text-sm studio-text-muted">
-                  Export both themes as CSS variables (including derived states),
-                  or JSON with theme sources and overrides. Component markup and
-                  styles are not included.
+                  {t.exportDescription}
                 </Dialog.Description>
                 <SegmentedControl
                   className="mt-5"
-                  aria-label="Export format"
+                  aria-label={t.exportFormat}
                   value={format}
                   onValueChange={(next) => {
                     setFormat(next);
@@ -404,21 +415,21 @@ export default function Studio() {
                 <pre
                   className="code-output"
                   tabIndex={0}
-                  aria-label="Exported tokens"
+                  aria-label={t.exported}
                 >
                   <code>{output}</code>
                 </pre>
                 <p role="status" className="min-h-5 text-xs studio-text-muted">
-                  {copyStatus}
+                  {copyStatus === "copied" ? t.copied : copyStatus === "clipboardError" ? t.clipboardError : ""}
                 </p>
                 <div className="mt-3 flex justify-end gap-2">
-                  <Button onClick={copy}>Copy {format.toUpperCase()}</Button>
+                  <Button onClick={copy}>{t.copy} {format.toUpperCase()}</Button>
                   <Button
                     variant="primary"
                     startIcon={<Icon name="download" />}
                     onClick={download}
                   >
-                    Download
+                    {t.download}
                   </Button>
                 </div>
               </Dialog.Popup>
@@ -427,24 +438,24 @@ export default function Studio() {
         </div>
       </header>
 
-      <aside className="studio-sidebar" aria-label="Component library">
+      <aside className="studio-sidebar" aria-label={t.library}>
         <div className="sidebar-project">
           <span className="project-icon">
             <Icon name="box" size={20} />
           </span>
           <div>
-            <strong>Your design system</strong>
-            <span>Make it feel like you.</span>
+            <strong>{t.yourSystem}</strong>
+            <span>{t.feel}</span>
           </div>
         </div>
-        <div className="sidebar-section-label">WORKSPACE</div>
+        <div className="sidebar-section-label">{t.workspace.toLocaleUpperCase(locale)}</div>
         <NavItem
           icon={<Icon name="grid" />}
           current={selection === "overview"}
           end={<span className="nav-end">6</span>}
           onClick={() => select("overview")}
         >
-          Overview
+          {t.overview}
         </NavItem>
         <NavItem
           icon={<Icon name="sliders" />}
@@ -463,22 +474,22 @@ export default function Studio() {
                             });
           }}
         >
-          Global tokens
+          {t.globalTokens}
         </NavItem>
         <div className="sidebar-divider" />
         <div className="sidebar-section-label flex justify-between">
-          COMPONENTS<span>06</span>
+          {t.components.toLocaleUpperCase(locale)}<span>06</span>
         </div>
         <div className="search-field">
           <Icon name="search" size={14} />
           <input
-            aria-label="Search components"
-            placeholder="Find a component…"
+            aria-label={t.search}
+            placeholder={t.find}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <nav aria-label="Components" className="component-nav">
+        <nav aria-label={t.components} className="component-nav">
           {componentIds
             .filter((id) => id.includes(query.toLowerCase().trim()))
             .map((id) => (
@@ -492,29 +503,29 @@ export default function Studio() {
                       <span
                         className="override-dot"
                         aria-hidden="true"
-                        title="Has custom tokens"
+                        title={t.customTitle}
                       />
-                      <span className="sr-only">, has custom tokens</span>
+                      <span className="sr-only">{t.custom}</span>
                     </>
                   )
                 }
                 onClick={() => select(id)}
               >
-                {title(id)}
+                {t.componentNames[id]}
               </NavItem>
             ))}
           {!componentIds.some((id) =>
             id.includes(query.toLowerCase().trim()),
           ) && (
-            <p className="p-3 text-xs studio-text-muted">No components found.</p>
+            <p className="p-3 text-xs studio-text-muted">{t.noComponents}</p>
           )}
         </nav>
         <div className="sidebar-bottom">
           <div className="tip-card">
             <Icon name="spark" size={18} />
-            <strong>Small tokens. Big possibilities.</strong>
+            <strong>{t.tip}</strong>
             <p>
-              Start with your foundations, then make every component your own.
+              {t.tipDetail}
             </p>
           </div>
           <a
@@ -524,7 +535,7 @@ export default function Studio() {
             rel="noreferrer"
           >
             <Icon name="box" size={14} />
-            Built with Base UI
+            {t.builtWith}
             <Icon name="arrow" size={14} />
           </a>
         </div>
@@ -533,28 +544,28 @@ export default function Studio() {
       <main className="studio-main" id="workspace" tabIndex={-1}>
         <div className="workspace-heading">
           <div className="breadcrumbs">
-            Workspace
+            {t.workspace}
             <Icon name="chevron" size={11} />
             <span>
-              {selection === "overview" ? "Overview" : title(selection)}
+              {selection === "overview" ? t.overview : t.componentNames[selection]}
             </span>
           </div>
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1>
                 {selection === "overview"
-                  ? "Your system, coming together."
-                  : `${title(selection)}, your way.`}
+                  ? t.overviewTitle
+                  : t.componentTitle(t.componentNames[selection])}
               </h1>
               <p>
                 {selection === "overview"
-                  ? "One place to shape your foundations and see them in action."
-                  : "Fine-tune the details. Every change is reflected in real time."}
+                  ? t.overviewIntro
+                  : t.componentIntro}
               </p>
             </div>
             <span className="live-badge">
               <span />
-              Live preview
+              {t.live}
             </span>
           </div>
         </div>
@@ -564,29 +575,29 @@ export default function Studio() {
           onValueChange={(next) => setView(next as View)}
         >
           <div className="preview-toolbar">
-            <Tabs.List className="view-switch" aria-label="Workspace view">
+            <Tabs.List className="view-switch" aria-label={t.workspaceView}>
               <Tabs.Tab value="design">
                 <Icon name="grid" size={14} />
-                Design
+                {t.design}
               </Tabs.Tab>
               <Tabs.Tab value="develop">
                 <Icon name="code" size={15} />
-                Develop
+                {t.develop}
               </Tabs.Tab>
             </Tabs.List>
             <div className="preview-width-controls" hidden={view !== "design"}>
               <span className="viewport-label">
-                {compact ? "375 px" : "Responsive"}
+                {compact ? "375 px" : t.responsive}
               </span>
               <SegmentedControl
-                aria-label="Preview width"
+                aria-label={t.width}
                 value={compact ? "mobile" : "desktop"}
                 onValueChange={(next) => setCompact(next === "mobile")}
               >
-                <SegmentedControl.Item value="desktop" aria-label="Desktop preview">
+                <SegmentedControl.Item value="desktop" aria-label={t.desktop}>
                   <Icon name="desktop" size={15} />
                 </SegmentedControl.Item>
-                <SegmentedControl.Item value="mobile" aria-label="Mobile preview">
+                <SegmentedControl.Item value="mobile" aria-label={t.mobile}>
                   <Icon name="mobile" size={15} />
                 </SegmentedControl.Item>
               </SegmentedControl>
@@ -594,11 +605,11 @@ export default function Studio() {
           </div>
           <div className="theme-toolbar">
             <div>
-              <strong>Design theme</strong>
-              <span>Editing {activeTheme} · independent of editor appearance</span>
+              <strong>{t.theme}</strong>
+              <span>{t.editing(activeTheme === "light" ? t.light : t.dark)}</span>
             </div>
             <SegmentedControl
-              aria-label="Design theme"
+              aria-label={t.theme}
               value={compareThemes && view === "design" ? "compare" : activeTheme}
               onValueChange={(next) => {
                 if (next === "compare") setCompareThemes(true);
@@ -608,19 +619,19 @@ export default function Studio() {
                 }
               }}
             >
-              <SegmentedControl.Item value="light">Light</SegmentedControl.Item>
-              <SegmentedControl.Item value="dark">Dark</SegmentedControl.Item>
-              {view === "design" && <SegmentedControl.Item value="compare">Compare</SegmentedControl.Item>}
+              <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
+              <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
+              {view === "design" && <SegmentedControl.Item value="compare">{t.compare}</SegmentedControl.Item>}
             </SegmentedControl>
           </div>
           <div className="preview-canvas">
             {notice && (
               <div role="status" className="notice">
-                <span>{notice}</span>
+                <span>{notice === "importError" ? `${t.importFailed}: ${t[importError]}` : t[notice]}</span>
                 <Button
                   variant="ghost"
                   iconOnly
-                  aria-label="Dismiss notification"
+                  aria-label={t.dismiss}
                   onClick={() => setNotice("")}
                 >
                   <Icon name="close" size={14} />
@@ -634,25 +645,25 @@ export default function Studio() {
                 className="preview-context"
               >
                 <div className="context-toolbar">
-                  <Tabs.List className="context-switch" aria-label="Design preview context">
-                    <Tabs.Tab value="components">Components</Tabs.Tab>
-                    <Tabs.Tab value="scenario">Scenario</Tabs.Tab>
+                  <Tabs.List className="context-switch" aria-label={t.context}>
+                    <Tabs.Tab value="components">{t.components}</Tabs.Tab>
+                    <Tabs.Tab value="scenario">{t.scenario}</Tabs.Tab>
                   </Tabs.List>
-                  <p>Compare the details or try the whole system.</p>
+                  <p>{t.contextHint}</p>
                 </div>
                 <div className={`preview-frame ${compact ? "compact" : ""}`}>
                   <div className="canvas-label">
                     <span>
                       {previewContext === "scenario"
-                        ? "WORKSPACE SCENARIO"
+                        ? t.scenarioLabel
                         : selection === "overview"
-                          ? "COMPONENT COLLECTION"
-                          : `${selection.toUpperCase()} EXPLORER`}
+                          ? t.collection
+                          : t.explorer(t.componentNames[selection])}
                     </span>
                     <span>
                       {previewContext === "components" && selection === "overview"
                         ? "01 — 06"
-                        : "INTERACTIVE"}
+                        : t.interactive}
                     </span>
                   </div>
                   <Preview
@@ -662,70 +673,71 @@ export default function Studio() {
                     mode={activeTheme}
                     compare={compareThemes}
                     onModeChange={setActiveTheme}
+                    locale={locale}
                   />
                 </div>
               </Tabs.Root>
             </Tabs.Panel>
             <Tabs.Panel value="develop" keepMounted className="workspace-panel">
-              <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} />
+              <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} locale={locale} />
             </Tabs.Panel>
             <div className="canvas-footnote">
               <Icon name="link" size={13} />
-              Connected to your tokens. Always in sync.
+              {t.footnote}
             </div>
           </div>
         </Tabs.Root>
         <footer className="workspace-footer">
           <span>
             <span className="status-dot" />
-            {componentIds.length} components
+            {new Intl.NumberFormat(locale).format(componentIds.length)} {t.componentsCount}
             <span className="footer-separator">/</span>
-            {tokenFields.length} global tokens
+            {new Intl.NumberFormat(locale).format(tokenFields.length)} {t.tokensCount}
             <span className="footer-separator">/</span>
-            {overrideCount} {activeTheme} overrides
+            {new Intl.NumberFormat(locale).format(overrideCount)} {activeTheme === "light" ? t.light : t.dark} {t.overrides}
           </span>
-          <span>Made to be yours.</span>
+          <span>{t.footer}</span>
         </footer>
       </main>
 
       <aside
         className="token-editor"
         id="token-editor"
-        aria-label="Design token editor"
+        aria-label={t.editor}
       >
         <div className="editor-title">
           <Icon name="sliders" />
-          <h2>Token inspector · {activeTheme}</h2>
+          <h2>{t.inspector} · {activeTheme === "light" ? t.light : t.dark}</h2>
           <span className="editor-count">{fields.length}</span>
         </div>
         <SegmentedControl
           className="editor-scope"
-          aria-label="Token scope"
+          aria-label={t.scope}
           value={scope}
           onValueChange={setScope}
         >
-          <SegmentedControl.Item value="global">Global tokens</SegmentedControl.Item>
+          <SegmentedControl.Item value="global">{t.globalTokens}</SegmentedControl.Item>
           <SegmentedControl.Item
             value="component"
             disabled={selection === "overview"}
           >
-            Component
+            {t.component}
           </SegmentedControl.Item>
         </SegmentedControl>
         <fieldset disabled={!ready} className="editor-fields">
-          <legend className="sr-only">Edit {activeTheme} theme tokens</legend>
+          <legend className="sr-only">{t.editTokens(activeTheme === "light" ? t.light : t.dark)}</legend>
           <div className="editor-intro">
             <span className="scope-icon">
               <Icon name={isGlobal ? "sliders" : component} size={18} />
             </span>
             <div>
               <h3>
-                {isGlobal ? "The foundations" : `${title(component)} tokens`}
+                {isGlobal ? t.foundations : t.componentTokens(t.componentNames[component])}
               </h3>
               <p>
                 {isGlobal
-                  ? "A little change goes a long way."
-                  : "Your details. Just for this component."}
+                  ? t.foundationsHint
+                  : t.componentHint}
               </p>
             </div>
           </div>
@@ -733,8 +745,8 @@ export default function Studio() {
             <Icon name="link" size={13} />
             <p>
               {isGlobal
-                ? "Shared across every component. Overrides stay untouched."
-                : "Values inherit from global tokens until you change them. Reset to reconnect."}
+                ? t.inheritGlobal
+                : t.inheritComponent}
             </p>
           </div>
           {ready && (
@@ -743,6 +755,7 @@ export default function Studio() {
                 key={workspaceRevision}
                 system={system}
                 mode={activeTheme}
+                locale={locale}
                 onApply={(colors, mode, source) => {
                   const target = system.themes[mode];
                   updateTheme({ ...target, source, global: { ...target.global, ...colors } }, mode);
@@ -751,19 +764,19 @@ export default function Studio() {
               />
             </div>
           )}
-          <ContrastReport theme={theme} mode={activeTheme} component={isGlobal ? undefined : component} />
+          <ContrastReport theme={theme} mode={activeTheme} component={isGlobal ? undefined : component} locale={locale} />
           {(
             [
               {
                 type: "color",
-                heading: "Colors",
+                heading: t.colors,
                 hint: String(colorFields.length),
                 className: "color-fields",
                 items: colorFields,
               },
               {
                 type: "number",
-                heading: "Shape & spacing",
+                heading: t.shape,
                 hint: "PX",
                 className: "number-fields",
                 items: numberFields,
@@ -780,6 +793,7 @@ export default function Studio() {
                   <TokenControl
                     key={`${activeTheme}-${scope}-${component}-${field.key}`}
                     field={field}
+                    locale={locale}
                     value={values[field.key as keyof typeof values]}
                     overridden={
                       isGlobal
@@ -803,8 +817,8 @@ export default function Studio() {
               if (
                 !window.confirm(
                   isGlobal
-                    ? `Reset ${activeTheme} global tokens? Component overrides and the other theme will be kept.`
-                    : `Reset all ${activeTheme} ${component} overrides to global tokens?`,
+                    ? t.confirmGlobal(activeTheme === "light" ? t.light : t.dark)
+                    : t.confirmComponent(activeTheme === "light" ? t.light : t.dark, t.componentNames[component]),
                 )
               )
                 return;
@@ -818,12 +832,12 @@ export default function Studio() {
               );
             }}
           >
-            {isGlobal ? "Reset global tokens" : "Reset component overrides"}
+            {isGlobal ? t.resetGlobal : t.resetComponent}
           </Button>
         </fieldset>
         <div className="editor-footer">
           <span className="tiny-orbit" />
-          Changes apply instantly
+          {t.changes}
         </div>
       </aside>
     </div>

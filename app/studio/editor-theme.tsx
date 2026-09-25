@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { SegmentedControl } from "./controls";
+import { copy, type Locale } from "./locale";
 
 type EditorTheme = "light" | "dark" | "system";
 
-export function EditorThemeControl() {
+export function EditorThemeControl({ locale }: { locale: Locale }) {
+  const t = copy[locale];
   const [theme, setTheme] = useState<EditorTheme>("system");
 
   useEffect(() => {
@@ -14,14 +16,14 @@ export function EditorThemeControl() {
 
   return (
     <SegmentedControl
-      aria-label="Editor appearance"
+      aria-label={t.editorAppearance}
       className="editor-theme-control"
       value={theme}
       onValueChange={setTheme}
     >
-      <SegmentedControl.Item value="light">Light</SegmentedControl.Item>
-      <SegmentedControl.Item value="dark">Dark</SegmentedControl.Item>
-      <SegmentedControl.Item value="system">System</SegmentedControl.Item>
+      <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
+      <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
+      <SegmentedControl.Item value="system">{t.system}</SegmentedControl.Item>
     </SegmentedControl>
   );
 }

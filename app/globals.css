@@ -349,6 +349,17 @@ button:disabled {
   align-items: center;
   gap: 9px;
 }
+.language-control select {
+  min-height: 34px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--studio-color-border);
+  border-radius: var(--studio-control-radius);
+  background: var(--studio-color-surface);
+  color: var(--studio-color-text);
+  font: inherit;
+  font-size: 12px;
+}
 .save-status {
   display: flex;
   align-items: center;

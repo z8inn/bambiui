@@ -12,6 +12,8 @@ import {
   type PaletteMode,
 } from "./color-engine";
 import { auditSystemColors } from "./color-audit";
+import { colorBuilderCopy } from "./color-builder-copy";
+import type { Locale } from "./locale";
 import type { ComponentId, DesignSystem, ThemeTokens } from "./tokens";
 import styles from "./color-builder.module.css";
 
@@ -25,29 +27,44 @@ const presets = [
 const title = (text: string) => text[0].toUpperCase() + text.slice(1);
 const validHex = (text: string) => /^#[\da-f]{6}$/i.test(text);
 // Flooring avoids presenting a failing 4.499:1 pair as meeting a 4.5:1 target.
-const ratioText = (ratio: number) => (Math.floor(ratio * 100) / 100).toFixed(2);
+const numberText = (value: number, locale: Locale) => new Intl.NumberFormat(locale === "tr" ? "tr-TR" : "en-US").format(value);
+const ratioText = (ratio: number, locale: Locale) => new Intl.NumberFormat(locale === "tr" ? "tr-TR" : "en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Math.floor(ratio * 100) / 100);
+const minimumText = (minimum: number, locale: Locale) => numberText(minimum, locale);
 
-function ThemeRecipe({ mode, theme, current, onApply }: {
+function auditLabel(label: string, locale: Locale) {
+  if (locale === "en") return label;
+  return colorBuilderCopy.tr.auditPhrases.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), label);
+}
+
+type DraftMessage = { kind: "generated" } | { kind: "applied"; mode: PaletteMode; source: string } | null;
+
+function ThemeRecipe({ mode, theme, current, onApply, locale }: {
   mode: PaletteMode;
+  locale: Locale;
   theme: GeneratedTheme;
   current: ThemeTokens["global"];
   onApply: (tokens: ColorTokens) => void;
 }) {
+  const copy = colorBuilderCopy[locale];
+  const modeLabel = copy.modes[mode];
   const matches = Object.entries(theme.tokens).every(
     ([key, value]) => current[key as keyof ColorTokens].toLowerCase() === value,
   );
   return (
-    <section className={styles.recipe} aria-label={`${title(mode)} palette`}>
+    <section className={styles.recipe} aria-label={copy.palette(modeLabel)}>
       <div className={styles.recipeHeading}>
-        <h4>{title(mode)} palette</h4>
-        {matches && <span className={styles.match}>Matches global colors</span>}
+        <h4>{copy.palette(modeLabel)}</h4>
+        {matches && <span className={styles.match}>{copy.matches}</span>}
       </div>
       <div
         className={styles.sample}
         style={{ background: theme.tokens.background, color: theme.tokens.foreground, borderColor: theme.tokens.border }}
       >
-        <strong>Your workspace</strong>
-        <p style={{ color: theme.tokens.mutedForeground }}>A shared visual language.</p>
+        <strong>{copy.workspace}</strong>
+        <p style={{ color: theme.tokens.mutedForeground }}>{copy.visualLanguage}</p>
         <div className={styles.roleSamples}>
           {paletteRoles.map((role) => (
             <span key={role} style={{ background: theme.roles[role].solid, color: theme.roles[role].onSolid }}>
@@ -57,11 +74,11 @@ function ThemeRecipe({ mode, theme, current, onApply }: {
         </div>
       </div>
       <Button fullWidth onClick={() => onApply(theme.tokens)}>
-        Apply {mode} colors
+        {copy.apply(mode)}
       </Button>
       <details className={styles.details}>
-        <summary>{title(mode)} role recipes & contrast</summary>
-        <p>The same derivation powers component hover, active, subtle and focus colors. Component overrides can produce different results; check the selected theme’s report.</p>
+        <summary>{copy.recipes(modeLabel)}</summary>
+        <p>{copy.derivation}</p>
         {paletteRoles.map((role) => {
           const colors = theme.roles[role];
           return (
@@ -70,14 +87,14 @@ function ThemeRecipe({ mode, theme, current, onApply }: {
               <div className={styles.roleSamples}>
                 {(["solid", "hover", "active"] as const).map((state) => (
                   <span key={state} style={{ background: colors[state], color: colors.onSolid }}>
-                    {title(state)} {ratioText(contrastRatio(colors.onSolid, colors[state]))}:1
+                    {copy.states[state]} {ratioText(contrastRatio(colors.onSolid, colors[state]), locale)}:1
                   </span>
                 ))}
                 <span style={{ background: colors.subtle, color: colors.onSubtle }}>
-                  Subtle {ratioText(contrastRatio(colors.onSubtle, colors.subtle))}:1
+                  {copy.states.subtle} {ratioText(contrastRatio(colors.onSubtle, colors.subtle), locale)}:1
                 </span>
               </div>
-              <p>Text ≥ 4.5:1. Outline / focus ≥ 3:1 on this palette’s background and muted surface.</p>
+              <p>{copy.textTargets(minimumText(4.5, locale), minimumText(3, locale))}</p>
               <dl className={styles.values}>
                 {Object.entries(colors).map(([key, color]) => (
                   <div key={key}><dt>{key}</dt><dd><code>{color}</code></dd></div>
@@ -91,20 +108,22 @@ function ThemeRecipe({ mode, theme, current, onApply }: {
   );
 }
 
-export function ColorBuilder({ system, mode, onApply }: {
+export function ColorBuilder({ system, mode, onApply, locale }: {
   system: DesignSystem;
   mode: PaletteMode;
+  locale: Locale;
   onApply: (tokens: ColorTokens, mode: PaletteMode, source: string) => void;
 }) {
   const id = useId();
-  const [drafts, setDrafts] = useState<Record<PaletteMode, { source: string; palette: GeneratedPalette; message: string }>>(() => ({
-    light: { source: system.themes.light.source, palette: generatePalette(system.themes.light.source), message: "" },
-    dark: { source: system.themes.dark.source, palette: generatePalette(system.themes.dark.source), message: "" },
+  const copy = colorBuilderCopy[locale];
+  const [drafts, setDrafts] = useState<Record<PaletteMode, { source: string; palette: GeneratedPalette; message: DraftMessage }>>(() => ({
+    light: { source: system.themes.light.source, palette: generatePalette(system.themes.light.source), message: null },
+    dark: { source: system.themes.dark.source, palette: generatePalette(system.themes.dark.source), message: null },
   }));
   const { source, palette, message } = drafts[mode];
 
   function changeSource(next: string) {
-    setDrafts((current) => ({ ...current, [mode]: { ...current[mode], source: next, message: "" } }));
+    setDrafts((current) => ({ ...current, [mode]: { ...current[mode], source: next, message: null } }));
   }
   const valid = validHex(source);
   const stale = !valid || source.toLowerCase() !== palette.source;
@@ -113,19 +132,19 @@ export function ColorBuilder({ system, mode, onApply }: {
     setDrafts((current) => ({ ...current, [mode]: {
       source: next,
       palette: generatePalette(next),
-      message: "Light and dark palettes generated. Review them before applying.",
+      message: { kind: "generated" },
     } }));
   }
 
   return (
     <section className={styles.builder} aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>Color builder</h3>
-      <p>Start with a brand color. Keep its hue; derive readable usage tones. Status colors stay green, amber, red and blue.</p>
-      <label htmlFor={`${id}-source`}>Source brand color</label>
+      <h3 id={`${id}-title`}>{copy.builder}</h3>
+      <p>{copy.intro}</p>
+      <label htmlFor={`${id}-source`}>{copy.source}</label>
       <div className={styles.sourceInput}>
         <input
           type="color"
-          aria-label="Source brand color picker"
+          aria-label={copy.picker}
           value={valid ? source : palette.source}
           onChange={(event) => changeSource(event.target.value)}
         />
@@ -141,30 +160,31 @@ export function ColorBuilder({ system, mode, onApply }: {
         />
       </div>
       <p id={`${id}-help`}>
-        {valid ? "Six-digit hex. Your source stays separate from the adjusted primary color." : "Enter a six-digit hex color, such as #e8673c."}
+        {valid ? copy.validHex : copy.invalidHex}
       </p>
-      <div className={styles.presets} aria-label="Brand color presets">
+      <div className={styles.presets} aria-label={copy.presets}>
         {presets.map((preset) => (
-          <Button key={preset.name} aria-label={`Generate ${preset.name} palette`} onClick={() => generate(preset.color)}>
+          <Button key={preset.name} aria-label={copy.generatePreset(preset.name)} onClick={() => generate(preset.color)}>
             <span className={styles.swatch} style={{ background: preset.color }} aria-hidden="true" />
             {preset.name}
           </Button>
         ))}
       </div>
       <div className={styles.actions}>
-        <Button disabled={!valid} onClick={() => generate(source)}>Generate palettes</Button>
-        <Button onClick={() => generate(system.themes[mode].global.primary)}>Use current primary</Button>
-                <Button onClick={() => generate(system.themes[mode].source)}>Use {mode} source</Button>
+        <Button disabled={!valid} onClick={() => generate(source)}>{copy.generate}</Button>
+        <Button onClick={() => generate(system.themes[mode].global.primary)}>{copy.usePrimary}</Button>
+        <Button onClick={() => generate(system.themes[mode].source)}>{copy.useSource(mode)}</Button>
       </div>
-      <p role="status" className={styles.feedback}>{message}</p>
+      <p role="status" className={styles.feedback}>{message?.kind === "generated" ? copy.generated : message?.kind === "applied" ? copy.applied(copy.modes[message.mode], message.source) : ""}</p>
       <details className={styles.details} open>
-        <summary>Generated from <code>{palette.source}</code></summary>
-        {stale && <p className={styles.warning}>Source changed. Generate again to update these recipes; they still use {palette.source}.</p>}
-        <p>Apply light or dark to replace that theme’s 17 global colors and source. Its spacing, overrides and the other theme stay unchanged. Editor appearance is independent.</p>
+        <summary>{copy.generatedFrom} <code>{palette.source}</code></summary>
+        {stale && <p className={styles.warning}>{copy.stale(palette.source)}</p>}
+        <p>{copy.applyHelp}</p>
         {(["light", "dark"] as const).map((mode) => (
           <ThemeRecipe
             key={mode}
             mode={mode}
+            locale={locale}
             theme={palette[mode]}
             current={system.themes[mode].global}
             onApply={(tokens) => {
@@ -172,15 +192,15 @@ export function ColorBuilder({ system, mode, onApply }: {
               setDrafts((current) => ({ ...current, [mode]: {
                 source: palette.source,
                 palette,
-                message: `${title(mode)} theme colors applied from ${palette.source}. Overrides and the other theme were kept. Check current contrast below.`,
+                message: { kind: "applied", mode, source: palette.source },
               } }));
             }}
           />
         ))}
       </details>
       <details className={styles.details}>
-        <summary>12-step color scales</summary>
-        <p>Light to dark. Scale stops are raw colors, not guaranteed text/background combinations.</p>
+        <summary>{copy.scales(numberText(12, locale))}</summary>
+        <p>{copy.scalesHelp}</p>
         {([...paletteRoles, "neutral"] as const).map((role) => (
           <div className={styles.scale} key={role}>
             <h4>{title(role)}</h4>
@@ -188,39 +208,40 @@ export function ColorBuilder({ system, mode, onApply }: {
               {palette.scales[role].map((color, index) => (
                 <li key={index}>
                   <span className={styles.swatch} style={{ background: color }} aria-hidden="true" />
-                  <span>{index + 1}</span><code>{color}</code>
+                  <span>{numberText(index + 1, locale)}</span><code>{color}</code>
                 </li>
               ))}
             </ol>
           </div>
         ))}
       </details>
-      <p>Applying records the source in that theme’s JSON backup. Unapplied candidates stay in this page only. CSS exports both themes and their derived states; raw scales are available through the recipe CLI.</p>
+      <p>{copy.backupHelp}</p>
     </section>
   );
 }
 
-export function ContrastReport({ theme, mode, component }: { theme: ThemeTokens; mode: PaletteMode; component?: ComponentId }) {
+export function ContrastReport({ theme, mode, component, locale }: { theme: ThemeTokens; mode: PaletteMode; component?: ComponentId; locale: Locale }) {
+  const copy = colorBuilderCopy[locale];
   const checks = useMemo(() => auditSystemColors(theme, mode), [theme, mode]);
   const scoped = component ? checks.filter((check) => check.component === component) : checks;
   const failures = scoped.filter((check) => !check.passes);
   return (
-    <section className={styles.report} aria-label="Current contrast checks">
-      <h3>{title(mode)} · {component ? `${title(component)} contrast` : "Current system contrast"}</h3>
+    <section className={styles.report} aria-label={copy.currentChecks}>
+      <h3>{copy.modes[mode]} · {component ? copy.componentContrast(title(component)) : copy.systemContrast}</h3>
       <p role="status" aria-atomic="true">
         {failures.length > 0
-          ? `${failures.length} of ${scoped.length} checked color pairs need attention.`
-          : `All ${scoped.length} checked color pairs meet their targets.`}
+          ? copy.failures(numberText(failures.length, locale), numberText(scoped.length, locale))
+          : copy.allPass(numberText(scoped.length, locale))}
       </p>
-      <p>Selected color pairs on the global surface, including modeled mixes and enabled states. Not a complete accessibility audit; nested surfaces and other states still need review.</p>
+      <p>{copy.reportHelp}</p>
       <details className={styles.details}>
-        <summary>{failures.length ? `Review ${failures.length} contrast warnings` : "Review checked pairs"}</summary>
-        <ul className={styles.checks} tabIndex={0} aria-label="Contrast pair results">
+        <summary>{failures.length ? copy.reviewWarnings(numberText(failures.length, locale)) : copy.reviewPairs}</summary>
+        <ul className={styles.checks} tabIndex={0} aria-label={copy.pairResults}>
           {(failures.length ? failures : scoped).map((check) => (
             <li key={check.id} data-contrast-check={check.id}>
-              <strong>{check.label}</strong>
-              <span>{check.passes ? "Pass" : "Below target"}: {ratioText(check.ratio)}:1 / required {check.minimum}:1</span>
-              <code>{check.foreground} on {check.background}</code>
+              <strong>{auditLabel(check.label, locale)}</strong>
+              <span>{check.passes ? copy.pass : copy.belowTarget}: {ratioText(check.ratio, locale)}:1 / {copy.required} {minimumText(check.minimum, locale)}:1</span>
+              <code>{check.foreground} {copy.on} {check.background}</code>
             </li>
           ))}
         </ul>

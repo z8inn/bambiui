@@ -4,7 +4,7 @@
 
 One design system, two working views: **Design** for visual decisions and **Develop** for implementation details. Switching views does not change the selected component, tokens or inspector scope. Design has **Components** and **Scenario** contexts. Existing local persistence remains unchanged; auth, server-side persistence and saving workflows are outside these stages.
 
-UI copy remains English until the localization stage. Editor appearance stays independent of user-designed preview tokens.
+Studio UI supports English (default) and Turkish. Editor appearance stays independent of user-designed preview tokens.
 
 ## 1. Workspace and preview — implemented
 
@@ -80,12 +80,19 @@ At the stage 2 checkpoint, palette application was not a multi-theme switch and 
 
 **Transition decision:** implementation and automated checks are complete. Keep manual accessibility acceptance explicitly open; do not label the full stage gate passed until reviewed.
 
-## 4. Localization — planned
+## 4. Localization — implemented; automated gate passed
 
-- Typed Turkish/English dictionaries covering UI, notifications, errors and accessible names.
-- Language selector and document language; locale-aware number/date formatting.
-- Keep code identifiers, props and token keys stable.
-- Gate: complete dictionaries, longer-copy layout checks, identical functionality, unchanged design state across languages.
+- Typed Turkish/English dictionaries cover studio controls, preview specimens and scenario, builder, contrast report, developer explanations, accessible names, notices and errors. English remains the SSR/default language; switching languages updates `html.lang` after hydration. The language selector is session-only and does not change schema v3 or stored design values.
+- Source color and preview interactions, selected component, context, editing theme and builder drafts remain mounted and unchanged across language switches. Dynamic messages are stored as semantic states rather than previously rendered English text. Counts and contrast ratios are formatted for the selected locale; raw CSS, JSON, prop identifiers, token keys and code examples stay stable. No dates are displayed, so date formatting is not needed.
+- The default English SSR and hydration path and all prior browser flows remain intact. Localization applies to the client-side studio UI, not locale-specific routes or SEO metadata.
+
+### Validation and remaining gate
+
+- TypeScript production build and static export, ESLint and 97 Node tests passed (the 93 prior tests plus 4 runtime dictionary-parity checks; compile-time dictionary shapes are enforced).
+- 51 Chromium smoke checks passed (49 prior plus language/state retention and Turkish 375px reflow across both design themes and both views, with accessibility-tree names and browser errors).
+- Automated 375px checks do not establish visual perfection for every Turkish label. Manual VoiceOver and native 200% browser zoom acceptance from stage 3 remains open; see `docs/accessibility-checklist.md`. No full WCAG claim.
+
+**Transition decision:** stage 4 implementation and automated checks are complete; stage 5 integration quality gate remains. Manual accessibility acceptance must be completed before claiming the full accessibility promise.
 
 ## 5. Integration quality gate — planned
 
