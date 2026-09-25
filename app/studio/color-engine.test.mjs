@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { defaultSystem, exportCSS, parseDesignSystem, resolveComponent } from "./tokens.ts";
-import { contrastRatio, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
+import { defaultSystem, exportCSS, parseDesignSystem, resolveComponent, toCSSVariables } from "./tokens.ts";
+import { contrastRatio, deriveRoleColors, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
 
 const seeds = ["#000000", "#ffffff", "#808080", "#010101", "#fefefe", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#e8673c", "#123456", "#faf0ff"];
 const channels = (hex) => hex.slice(1).match(/../g).map((s) => parseInt(s, 16) / 255);
@@ -33,7 +33,7 @@ function checkPalette(palette) {
       meets(tokens.primary, bg, 4.5);
       for (const role of paletteRoles) {
         const colors = roles[role];
-        meets(colors.solid, bg, 3);
+        for (const state of ["solid", "hover", "active"]) meets(colors[state], bg, 3);
         meets(colors.outline, bg, 3);
         meets(colors.focus, bg, 3);
       }
@@ -45,6 +45,8 @@ function checkPalette(palette) {
       for (const state of ["solid", "hover", "active"]) meets(colors.onSolid, colors[state], 4.5);
       assert.equal(colors.subtle, mixColors(colors.solid, tokens.background, mode === "dark" ? 0.18 : 0.1));
       meets(colors.onSubtle, colors.subtle, 4.5);
+      meets(colors.onSubtle, tokens.background, 4.5);
+      assert.deepEqual(colors, deriveRoleColors(colors.solid, colors.onSolid, tokens.background, mode, tokens.muted));
       assert.equal(Object.keys(colors).length, 8);
       for (const value of Object.values(colors)) assert.match(value, /^#[0-9a-f]{6}$/);
       assert.notEqual(colors.solid, "#ffffff");
@@ -145,21 +147,25 @@ test("applied palettes round-trip through the existing schema without losing ove
   for (const mode of ["light", "dark"]) {
     const palette = generatePalette("#e8673c");
     const system = structuredClone(defaultSystem);
-    system.global.radius = 17;
-    system.global.fontSize = 19;
-    system.components.button.background = "#123456";
-    system.components.card.paddingX = 0;
-    const applied = { ...system, global: { ...system.global, ...palette[mode].tokens } };
+    const theme = system.themes[mode];
+    theme.global.radius = 17;
+    theme.global.fontSize = 19;
+    theme.components.button.background = "#123456";
+    theme.components.card.paddingX = 0;
+    const applied = structuredClone(system);
+    applied.themes[mode] = { ...theme, source: palette.source, global: { ...theme.global, ...palette[mode].tokens } };
     const restored = parseDesignSystem(JSON.stringify(applied));
     assert.deepEqual(restored, applied);
-    assert.equal(restored.global.radius, 17);
-    assert.equal(restored.global.fontSize, 19);
-    assert.deepEqual(restored.components, system.components);
-    assert.equal(resolveComponent(restored, "button").background, "#123456");
-    assert.equal(resolveComponent(restored, "card").paddingX, 0);
+    const restoredTheme = restored.themes[mode];
+    assert.equal(restoredTheme.source, palette.source);
+    assert.equal(restoredTheme.global.radius, 17);
+    assert.equal(restoredTheme.global.fontSize, 19);
+    assert.deepEqual(restoredTheme.components, theme.components);
+    assert.equal(resolveComponent(restoredTheme, "button").background, "#123456");
+    assert.equal(resolveComponent(restoredTheme, "card").paddingX, 0);
     assert.ok(exportCSS(restored).includes(`--ds-primary: ${palette[mode].tokens.primary};`));
     assert.ok(exportCSS(restored).includes("--button-background: #123456;"));
-    assert.deepEqual(system.global, { ...defaultSystem.global, radius: 17, fontSize: 19 });
+    assert.deepEqual(theme.global, { ...defaultSystem.themes[mode].global, radius: 17, fontSize: 19 });
   }
 });
 
@@ -175,6 +181,131 @@ test("CLI emits a deterministic source-preserving recipe, not a studio backup", 
     assert.equal(result.status, 1);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /Usage:|six-digit hex/);
+  }
+});
+
+test("manual role derivation preserves exact values and tolerates impossible pairs", () => {
+  for (const mode of ["light", "dark"]) {
+    const colors = deriveRoleColors("#AbCdEf", "#777777", "#000000", mode);
+    assert.equal(colors.solid, "#AbCdEf");
+    assert.equal(colors.onSolid, "#777777");
+    assert.equal(colors.hover, colors.solid);
+    assert.equal(colors.active, colors.solid);
+    assert.ok(ratio(colors.onSolid, colors.hover) < 4.5);
+    for (const solid of seeds) {
+      const result = deriveRoleColors(solid, "#FFFFFF", "#ffffff", mode, "#eeeeee");
+      assert.equal(result.solid, solid);
+      assert.equal(result.onSolid, "#FFFFFF");
+      for (const state of ["hover", "active"]) {
+        meets(result[state], result.onSolid, 4.5);
+        meets(result[state], "#ffffff", 3);
+        meets(result[state], "#eeeeee", 3);
+      }
+    }
+  }
+});
+
+test("cached derivation preserves pre-optimization results and isolates every returned object", () => {
+  const fixtures = [
+    {
+      args: ["#AbCdEf", "#777777", "#000000", "light", "#ffffff"],
+      expected: { solid: "#AbCdEf", onSolid: "#777777", hover: "#AbCdEf", active: "#AbCdEf", subtle: "#111518", onSubtle: "#6181a0", outline: "#6a8aa9", focus: "#6a8aa9" },
+    },
+    {
+      args: ["#AbCdEf", "#777777", "#000000", "dark", "#ffffff"],
+      expected: { solid: "#AbCdEf", onSolid: "#777777", hover: "#AbCdEf", active: "#AbCdEf", subtle: "#1f252b", onSubtle: "#91b2d3", outline: "#6a8aa9", focus: "#6a8aa9" },
+    },
+    {
+      args: ["#e8673c", "#ffffff", "#ffffff", "light", "#eeeeee"],
+      expected: { solid: "#e8673c", onSolid: "#ffffff", hover: "#a23200", active: "#822600", subtle: "#fdf0ec", onSubtle: "#a23200", outline: "#d8582c", focus: "#d8582c" },
+    },
+    {
+      args: ["#e8673c", "#ffffff", "#ffffff", "dark", "#eeeeee"],
+      expected: { solid: "#e8673c", onSolid: "#ffffff", hover: "#000000", active: "#000000", subtle: "#fbe4dc", onSubtle: "#000000", outline: "#d8582c", focus: "#d8582c" },
+    },
+  ];
+  for (const { args, expected } of fixtures) {
+    const first = deriveRoleColors(...args);
+    assert.deepEqual(first, expected);
+    for (const key of Object.keys(first)) first[key] = "#123456";
+    const hit = deriveRoleColors(...args);
+    assert.notEqual(hit, first);
+    assert.deepEqual(hit, expected);
+    for (const key of Object.keys(hit)) delete hit[key];
+    assert.deepEqual(deriveRoleColors(...args), expected);
+  }
+  // Churn beyond the bounded cache; eviction must not affect numeric results.
+  for (let i = 0; i < 257; i++) {
+    deriveRoleColors(`#${i.toString(16).padStart(6, "0")}`, "#ffffff", "#ffffff", "light");
+  }
+  for (const { args, expected } of fixtures) assert.deepEqual(deriveRoleColors(...args), expected);
+});
+
+test("cache keys retain exact inputs and validation precedes lookup", () => {
+  const args = ["#AbCdEf", "#FFFFFF", "#000000", "light", "#ffffff"];
+  const expected = deriveRoleColors(...args);
+  const lowercase = deriveRoleColors("#abcdef", "#ffffff", ...args.slice(2));
+  assert.equal(lowercase.solid, "#abcdef");
+  assert.equal(lowercase.onSolid, "#ffffff");
+  assert.deepEqual(deriveRoleColors(...args), expected);
+  for (const index of [0, 1, 2, 4]) {
+    for (const invalid of [null, 123456, "#fff", "red", { toJSON: () => args[index] }]) {
+      const invalidArgs = [...args];
+      invalidArgs[index] = invalid;
+      assert.throws(() => deriveRoleColors(...invalidArgs), /six-digit hex/);
+    }
+  }
+  assert.deepEqual(
+    deriveRoleColors(...args.slice(0, 4)),
+    deriveRoleColors(...args.slice(0, 4), args[2]),
+  );
+});
+
+test("default runtime role variables match the generated recipe in both themes", () => {
+  const palette = generatePalette("#e8673c");
+  for (const mode of ["light", "dark"]) {
+    const theme = defaultSystem.themes[mode];
+    assert.equal(theme.source, palette.source);
+    const css = toCSSVariables(theme, mode);
+    for (const role of paletteRoles) {
+      for (const [key, suffix] of Object.entries({ hover: "hover", active: "active", subtle: "subtle", onSubtle: "on-subtle", outline: "outline", focus: "focus" })) {
+        assert.equal(css[`--ds-${role}-${suffix}`], palette[mode].roles[role][key]);
+      }
+    }
+  }
+});
+
+test("component CSS contract derives override states from their actual surfaces", () => {
+  for (const mode of ["light", "dark"]) {
+    const theme = structuredClone(defaultSystem.themes[mode]);
+    theme.components.button.background = "#AbCdEf";
+    theme.components.button.foreground = "#777777";
+    theme.components.badge.background = "#123456";
+    theme.components.badge.foreground = "#ffffff";
+    theme.components.card.background = "#123456";
+    theme.components.card.foreground = "#ffffff";
+    const original = structuredClone(theme);
+    const css = toCSSVariables(theme, mode);
+    const button = deriveRoleColors("#AbCdEf", "#777777", theme.global.background, mode, theme.global.muted);
+    assert.equal(css["--button-hover"], button.hover);
+    assert.equal(css["--button-active"], button.active);
+    assert.equal(css["--button-background"], "#AbCdEf");
+    for (const tone of ["neutral", "primary", "success", "warning", "danger", "info"]) {
+      const solid = tone === "neutral" ? "#ffffff" : theme.global[tone];
+      const ink = tone === "neutral" ? "#123456" : theme.global[`on${tone[0].toUpperCase()}${tone.slice(1)}`];
+      const colors = deriveRoleColors(solid, ink, "#123456", mode);
+      assert.equal(css[`--badge-${tone}-subtle`], colors.subtle);
+      assert.equal(css[`--badge-${tone}-on-subtle`], colors.onSubtle);
+      assert.equal(css[`--badge-${tone}-outline`], colors.outline);
+    }
+    meets(css["--card-description"], "#123456", 4.5);
+    meets(css["--card-filled-description"], theme.global.muted, 4.5);
+    for (const [key, value] of Object.entries({
+      "--ds-control-inset": "2px", "--ds-checkbox-inset": "6px",
+      "--ds-spinner-duration": "800ms", "--ds-card-icon-border-width": "1px",
+    })) assert.equal(css[key], value);
+    assert.ok(css["--ds-switch-thumb-shadow"]);
+    assert.deepEqual(theme, original);
   }
 });
 

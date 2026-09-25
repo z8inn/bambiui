@@ -1,3 +1,12 @@
+import {
+  contrastRatio,
+  deriveRoleColors,
+  generatePalette,
+  mixColors,
+  paletteRoles,
+} from "./color-engine.ts";
+import type { PaletteMode, PaletteRole } from "./color-engine.ts";
+
 export const componentIds = [
   "button",
   "input",
@@ -63,16 +72,22 @@ export type ComponentTokens = Pick<
   (typeof componentTokenKeys)[number]
 >;
 
-export type DesignSystem = {
-  version: 2;
-  name: string;
+export type ThemeTokens = {
+  source: string;
   global: TokenValues;
   components: Record<ComponentId, Partial<ComponentTokens>>;
 };
 
+export type DesignSystem = {
+  version: 3;
+  name: string;
+  themes: Record<PaletteMode, ThemeTokens>;
+};
+
 export const STORAGE_KEY = "bambiui.design-system.v1";
 
-export const defaultSystem: DesignSystem = {
+/** Historical defaults are migration data, never generated palette values. */
+const legacyDefaults = {
   version: 2,
   name: "Untitled system",
   global: {
@@ -113,6 +128,45 @@ export const defaultSystem: DesignSystem = {
     checkbox: {},
   },
 };
+
+const defaultSource = "#e8673c";
+const defaultPalette = generatePalette(defaultSource);
+
+function defaultTheme(mode: PaletteMode): ThemeTokens {
+  return {
+    source: defaultSource,
+    global: { ...legacyDefaults.global, ...defaultPalette[mode].tokens },
+    components: { button: {}, input: {}, card: {}, badge: {}, switch: {}, checkbox: {} },
+  };
+}
+
+export const defaultSystem: DesignSystem = {
+  version: 3,
+  name: "Untitled system",
+  themes: { light: defaultTheme("light"), dark: defaultTheme("dark") },
+};
+
+/** Non-editable component constants, included in every exported theme. */
+export const systemConstants = {
+  "--ds-size-scale-sm": "0.875",
+  "--ds-size-scale-lg": "1.125",
+  "--ds-icon-size": "1.15em",
+  "--ds-focus-ring-width": "2px",
+  "--ds-focus-ring-offset": "3px",
+
+  "--ds-state-pressed-offset": "1px",
+  "--ds-state-disabled-opacity": "0.4",
+
+  "--ds-text-muted-mix": "70%",
+
+  "--ds-shadow-elevated": "0 8px 24px #27272a0c",
+  "--ds-transition-duration": "150ms",
+  "--ds-control-inset": "2px",
+  "--ds-switch-thumb-shadow": "0 1px 2px #00000029",
+  "--ds-checkbox-inset": "6px",
+  "--ds-spinner-duration": "800ms",
+  "--ds-card-icon-border-width": "1px",
+} as const;
 
 export type TokenField = {
   key: keyof TokenValues;
@@ -222,14 +276,14 @@ function inheritedKey(
 }
 
 export function resolveComponent(
-  system: DesignSystem,
+  theme: ThemeTokens,
   id: ComponentId,
 ): ComponentTokens {
   const tokens = {} as Record<keyof ComponentTokens, string | number>;
   for (const key of componentTokenKeys) {
-    tokens[key] = system.global[inheritedKey(id, key)];
+    tokens[key] = theme.global[inheritedKey(id, key)];
   }
-  return { ...(tokens as ComponentTokens), ...system.components[id] };
+  return { ...(tokens as ComponentTokens), ...theme.components[id] };
 }
 
 function kebabCase(key: string): string {
@@ -240,28 +294,79 @@ function cssValue(value: string | number): string {
   return typeof value === "number" ? `${value}px` : value;
 }
 
-export function toCSSVariables(system: DesignSystem): Record<string, string> {
-  const variables: Record<string, string> = {};
+const onRoleKeys = {
+  primary: "onPrimary", secondary: "onSecondary", success: "onSuccess",
+  warning: "onWarning", danger: "onDanger", info: "onInfo",
+} as const satisfies Record<PaletteRole, keyof TokenValues>;
+
+function descriptionColor(foreground: string, background: string): string {
+  const mixed = mixColors(foreground, background, 0.7);
+  return contrastRatio(mixed, background) >= 4.5 ? mixed : foreground;
+}
+
+export function toCSSVariables(
+  theme: ThemeTokens,
+  mode: PaletteMode = "light",
+): Record<string, string> {
+  const variables: Record<string, string> = { ...systemConstants };
   for (const { key } of tokenFields) {
-    variables[`--ds-${kebabCase(key)}`] = cssValue(system.global[key]);
+    variables[`--ds-${kebabCase(key)}`] = cssValue(theme.global[key]);
   }
   for (const id of componentIds) {
     for (const key of componentTokenKeys) {
-      const override = system.components[id][key];
+      const override = theme.components[id][key];
       variables[`--${id}-${kebabCase(key)}`] =
         override === undefined
           ? `var(--ds-${kebabCase(inheritedKey(id, key))})`
           : cssValue(override);
     }
   }
+  const global = theme.global;
+  for (const role of paletteRoles) {
+    const colors = deriveRoleColors(
+      global[role], global[onRoleKeys[role]], global.background, mode, global.muted,
+    );
+    for (const key of ["hover", "active", "subtle", "onSubtle", "outline", "focus"] as const) {
+      variables[`--ds-${role}-${kebabCase(key)}`] = colors[key];
+    }
+  }
+  const button = resolveComponent(theme, "button");
+  const buttonColors = deriveRoleColors(
+    button.background, button.foreground, global.background, mode, global.muted,
+  );
+  variables["--button-hover"] = buttonColors.hover;
+  variables["--button-active"] = buttonColors.active;
+
+  const badge = resolveComponent(theme, "badge");
+  for (const tone of ["neutral", "primary", "success", "warning", "danger", "info"] as const) {
+    const colors = deriveRoleColors(
+      tone === "neutral" ? badge.foreground : global[tone],
+      tone === "neutral" ? badge.background : global[onRoleKeys[tone]],
+      badge.background, mode, badge.background,
+    );
+    for (const key of ["subtle", "onSubtle", "outline"] as const) {
+      variables[`--badge-${tone}-${kebabCase(key)}`] =
+              tone === "neutral" && key === "outline"
+                ? theme.components.badge.border ?? colors[key]
+                : colors[key];
+    }
+  }
+  const card = resolveComponent(theme, "card");
+  variables["--card-description"] = descriptionColor(card.foreground, card.background);
+  variables["--card-filled-description"] = descriptionColor(global.foreground, global.muted);
   return variables;
 }
 
-export function exportCSS(system: DesignSystem): string {
-  const declarations = Object.entries(toCSSVariables(system))
-    .map(([key, value]) => `  ${key}: ${value};`)
-    .join("\n");
-  return `:root {\n${declarations}\n}\n`;
+export function exportCSS(workspace: Pick<DesignSystem, "themes">): string {
+  return (["light", "dark"] as const).map((mode) => {
+    const selector = mode === "light"
+      ? ':root, [data-ds-theme="light"]'
+      : '[data-ds-theme="dark"]';
+    const declarations = Object.entries(toCSSVariables(workspace.themes[mode], mode))
+      .map(([key, value]) => `  ${key}: ${value};`)
+      .join("\n");
+    return `${selector} {\n  color-scheme: ${mode};\n${declarations}\n}\n`;
+  }).join("\n");
 }
 
 function requireObject(
@@ -317,16 +422,30 @@ function validateTokens(value: unknown, path: string, partial: boolean): void {
 export function parseDesignSystem(text: string): DesignSystem {
   const value: unknown = JSON.parse(text);
   requireObject(value, "system");
-  requireKnownKeys(
-    value,
-    ["version", "name", "global", "components"],
-    "system",
-  );
-  if (value.version !== 1 && value.version !== 2) {
-    throw new Error("system.version must be 1 or 2");
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3) {
+    throw new Error("system.version must be 1, 2 or 3");
   }
+  requireKnownKeys(value, value.version === 3
+    ? ["version", "name", "themes"]
+    : ["version", "name", "global", "components"], "system");
   if (typeof value.name !== "string" || value.name.length > 80) {
     throw new Error("system.name must be a string of at most 80 characters");
+  }
+  if (value.version === 3) {
+    requireObject(value.themes, "themes");
+    requireKnownKeys(value.themes, ["light", "dark"], "themes");
+    for (const mode of ["light", "dark"] as const) {
+      const theme = value.themes[mode];
+      const path = `themes.${mode}`;
+      requireObject(theme, path);
+      requireKnownKeys(theme, ["source", "global", "components"], path);
+      if (typeof theme.source !== "string" || !/^#[0-9a-fA-F]{6}$/.test(theme.source)) {
+        throw new Error(`${path}.source must be a #rrggbb color`);
+      }
+      validateTokens(theme.global, `${path}.global`, false);
+      validateComponents(theme.components, `${path}.components`);
+    }
+    return value as DesignSystem;
   }
   if (value.version === 1) {
     // v1 predates the extended roles and size scale: accept only v1 keys, then
@@ -338,14 +457,24 @@ export function parseDesignSystem(text: string): DesignSystem {
         throw new Error(`global.${key} is required`);
       }
     }
-    value.global = { ...defaultSystem.global, ...value.global };
-    value.version = 2;
+    value.global = { ...legacyDefaults.global, ...value.global };
   }
   validateTokens(value.global, "global", false);
-  requireObject(value.components, "components");
-  requireKnownKeys(value.components, componentIds, "components");
+  validateComponents(value.components, "components");
+  const global = value.global as TokenValues;
+  const components = value.components as ThemeTokens["components"];
+  const theme = { source: global.primary, global, components };
+  return {
+    version: 3,
+    name: value.name,
+    themes: { light: structuredClone(theme), dark: structuredClone(theme) },
+  };
+}
+
+function validateComponents(value: unknown, path: string): void {
+  requireObject(value, path);
+  requireKnownKeys(value, componentIds, path);
   for (const id of componentIds) {
-    validateTokens(value.components[id], `components.${id}`, true);
+    validateTokens(value[id], `${path}.${id}`, true);
   }
-  return value as DesignSystem;
 }

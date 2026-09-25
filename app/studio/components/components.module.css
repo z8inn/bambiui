@@ -35,7 +35,7 @@
 .inputControl:has(:focus-visible),
 .switch:focus-visible,
 .checkbox:focus-visible {
-  outline: var(--ds-focus-ring-width) solid var(--ds-primary);
+  outline: var(--ds-focus-ring-width) solid var(--ds-primary-focus);
   outline-offset: var(--ds-focus-ring-offset);
 }
 
@@ -50,7 +50,7 @@
 }
 
 .spinner {
-  animation: spin 800ms linear infinite;
+  animation: spin var(--ds-spinner-duration) linear infinite;
 }
 
 @keyframes spin {
@@ -65,6 +65,8 @@
   --button-fill: var(--button-background);
   --button-ink: var(--button-foreground);
   --button-stroke: var(--button-border);
+  --button-hover-fill: var(--button-hover);
+  --button-active-fill: var(--button-active);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -85,11 +87,12 @@
   cursor: pointer;
   transition:
     background-color var(--ds-transition-duration) ease,
-    filter var(--ds-transition-duration) ease,
     transform var(--ds-transition-duration) ease;
 }
 
-.button > svg {
+.button > svg,
+.decorativeIcon,
+.decorativeIcon > svg {
   width: var(--ds-icon-size);
   height: var(--ds-icon-size);
   flex: 0 0 auto;
@@ -97,6 +100,8 @@
 
 .button[data-variant="secondary"] {
   --button-fill: var(--ds-secondary);
+  --button-hover-fill: var(--ds-secondary-hover);
+  --button-active-fill: var(--ds-secondary-active);
   --button-ink: var(--ds-on-secondary);
   --button-stroke: var(--ds-secondary);
 }
@@ -115,6 +120,8 @@
 
 .button[data-variant="destructive"] {
   --button-fill: var(--ds-danger);
+  --button-hover-fill: var(--ds-danger-hover);
+  --button-active-fill: var(--ds-danger-active);
   --button-ink: var(--ds-on-danger);
   --button-stroke: var(--ds-danger);
 }
@@ -151,7 +158,7 @@
       [data-variant="secondary"],
       [data-variant="destructive"]
     ):hover:not([data-disabled]) {
-    filter: brightness(var(--ds-state-hover-brightness));
+    --button-fill: var(--button-hover-fill);
   }
 
   .button:is([data-variant="outline"], [data-variant="ghost"]):hover:not(
@@ -163,6 +170,18 @@
   .button[data-variant="link"]:hover:not([data-disabled]) {
     text-decoration: underline;
   }
+}
+
+.decorativeIcon {
+  display: inline-flex;
+}
+
+.button:is([data-variant="primary"], [data-variant="secondary"], [data-variant="destructive"]):active:not([data-disabled]) {
+  --button-fill: var(--button-active-fill);
+}
+
+.button:is([data-variant="outline"], [data-variant="ghost"]):active:not([data-disabled]) {
+  --button-fill: var(--ds-muted);
 }
 
 /* Field (Input, Switch, Checkbox) ------------------------------------------- */
@@ -214,9 +233,6 @@
   transition: border-color var(--ds-transition-duration) ease;
 }
 
-.inputControl:has(.input[readonly]:not(:disabled)) {
-  background: var(--ds-muted);
-}
 
 .field[data-invalid] .inputControl {
   border-color: var(--ds-danger);
@@ -291,20 +307,20 @@
 }
 
 .switch {
-  /* Scales with the size scale (16px at md/14px); travel is one thumb-width. */
-  --thumb-size: calc(1em + 2px);
+  /* Travel is one thumb-width; the inset comes from the theme constants. */
+  --thumb-size: calc(1em + var(--ds-control-inset));
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  width: calc(var(--thumb-size) * 2 + 4px + var(--switch-border-width) * 2);
-  height: calc(var(--thumb-size) + 4px + var(--switch-border-width) * 2);
-  padding: 2px;
+  width: calc(var(--thumb-size) * 2 + var(--ds-control-inset) * 2 + var(--switch-border-width) * 2);
+  height: calc(var(--thumb-size) + var(--ds-control-inset) * 2 + var(--switch-border-width) * 2);
+  padding: var(--ds-control-inset);
   border: var(--switch-border-width) solid var(--switch-border);
   border-radius: var(--switch-radius);
   background: var(--switch-background);
   color: var(--switch-foreground);
   transition:
-    filter var(--ds-transition-duration) ease,
+    background-color var(--ds-transition-duration) ease,
     opacity var(--ds-transition-duration) ease;
 }
 
@@ -314,7 +330,7 @@
   flex: 0 0 auto;
   border-radius: inherit;
   background: currentColor;
-  box-shadow: 0 1px 3px #00000016;
+  box-shadow: var(--ds-switch-thumb-shadow);
   transition: transform var(--ds-transition-duration) ease;
 }
 
@@ -323,7 +339,7 @@
 }
 
 .checkbox {
-  --box-size: calc(1em + 6px + var(--checkbox-border-width) * 2);
+  --box-size: calc(1em + var(--ds-checkbox-inset) + var(--checkbox-border-width) * 2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -335,14 +351,10 @@
   background: var(--checkbox-background);
   color: var(--checkbox-foreground);
   transition:
-    filter var(--ds-transition-duration) ease,
+    background-color var(--ds-transition-duration) ease,
     opacity var(--ds-transition-duration) ease;
 }
 
-.field[data-invalid] .checkbox {
-  border-color: var(--ds-danger);
-  filter: none;
-}
 
 .indicator {
   display: flex;
@@ -354,9 +366,22 @@
 }
 
 .switch[data-unchecked],
-.checkbox[data-unchecked] {
-  filter: grayscale(1);
-  opacity: var(--ds-state-unchecked-opacity);
+.checkbox[data-unchecked]:not([data-indeterminate]) {
+  background: var(--ds-muted);
+  border-color: var(--ds-border);
+  color: var(--ds-foreground);
+}
+
+.field[data-invalid] :is(.checkbox, .switch) {
+  border-color: var(--ds-danger-outline);
+}
+
+.indicator[data-unchecked]:not([data-indeterminate]) {
+  display: none;
+}
+
+.choice:has([data-readonly]) {
+  cursor: default;
 }
 
 /* Badge --------------------------------------------------------------------- */
@@ -366,7 +391,9 @@
   --tone: var(--badge-foreground);
   --on-tone: var(--badge-background);
   --tone-border: var(--badge-border);
-  --tone-text: var(--badge-foreground);
+  --tone-text: var(--badge-neutral-on-subtle);
+  --tone-subtle: var(--badge-neutral-subtle);
+  --tone-outline: var(--badge-neutral-outline);
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -388,39 +415,48 @@
   flex: 0 0 auto;
 }
 
-.badge:not([data-tone="neutral"]) {
-  --tone-border: var(--tone);
-  /* Darken the role color toward the foreground so text keeps AA contrast. */
-  --tone-text: color-mix(
-    in srgb,
-    var(--tone) var(--ds-tone-text-mix),
-    var(--ds-foreground)
-  );
+.badge[data-variant="outline"] {
+  border-color: var(--tone-outline);
 }
 
 .badge[data-tone="primary"] {
   --tone: var(--ds-primary);
   --on-tone: var(--ds-on-primary);
+  --tone-subtle: var(--badge-primary-subtle);
+  --tone-text: var(--badge-primary-on-subtle);
+  --tone-outline: var(--badge-primary-outline);
 }
 
 .badge[data-tone="success"] {
   --tone: var(--ds-success);
   --on-tone: var(--ds-on-success);
+  --tone-subtle: var(--badge-success-subtle);
+  --tone-text: var(--badge-success-on-subtle);
+  --tone-outline: var(--badge-success-outline);
 }
 
 .badge[data-tone="warning"] {
   --tone: var(--ds-warning);
   --on-tone: var(--ds-on-warning);
+  --tone-subtle: var(--badge-warning-subtle);
+  --tone-text: var(--badge-warning-on-subtle);
+  --tone-outline: var(--badge-warning-outline);
 }
 
 .badge[data-tone="danger"] {
   --tone: var(--ds-danger);
   --on-tone: var(--ds-on-danger);
+  --tone-subtle: var(--badge-danger-subtle);
+  --tone-text: var(--badge-danger-on-subtle);
+  --tone-outline: var(--badge-danger-outline);
 }
 
 .badge[data-tone="info"] {
   --tone: var(--ds-info);
   --on-tone: var(--ds-on-info);
+  --tone-subtle: var(--badge-info-subtle);
+  --tone-text: var(--badge-info-on-subtle);
+  --tone-outline: var(--badge-info-outline);
 }
 
 .badge[data-variant="solid"] {
@@ -431,16 +467,12 @@
 
 .badge[data-variant="subtle"] {
   border-color: transparent;
-  background: color-mix(
-    in srgb,
-    var(--tone) var(--ds-tone-surface-mix),
-    var(--badge-background)
-  );
+  background: var(--tone-subtle);
 }
 
 .badgeDot {
-  width: 0.4em;
-  height: 0.4em;
+  width: calc(var(--ds-icon-size) / 3);
+  height: calc(var(--ds-icon-size) / 3);
   flex: 0 0 auto;
   border-radius: 50%;
   background: currentColor;
@@ -473,16 +505,21 @@
 .card[data-variant="filled"] {
   border-color: transparent;
   background: var(--ds-muted);
+  color: var(--ds-foreground);
+}
+
+.card[data-variant="filled"] .cardDescription {
+  color: var(--card-filled-description);
 }
 
 .cardIcon {
   display: grid;
   place-items: center;
-  width: 2em;
-  height: 2em;
-  border: 1px solid currentColor;
+  width: calc(var(--ds-icon-size) * 2);
+  height: calc(var(--ds-icon-size) * 2);
+  border: var(--ds-card-icon-border-width) solid currentColor;
   border-radius: inherit;
-  opacity: 0.65;
+
 }
 
 .cardIcon > svg {
@@ -503,11 +540,7 @@
 
 .cardDescription {
   margin: 0;
-  color: color-mix(
-    in srgb,
-    var(--card-foreground) var(--ds-text-muted-mix),
-    var(--card-background)
-  );
+  color: var(--card-description);
   line-height: 1.65;
 }
 
@@ -521,4 +554,22 @@
   align-items: center;
   align-self: stretch;
   gap: var(--card-gap);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .inputControl,
+  .switch,
+  .checkbox,
+  .thumb {
+    transition: none;
+  }
+
+  .button:active:not([data-disabled]) {
+    transform: none;
+  }
+
+  .spinner {
+    animation: none;
+  }
 }

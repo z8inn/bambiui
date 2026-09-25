@@ -6,7 +6,6 @@
   padding: clamp(16px, 3vw, 40px);
   color: var(--studio-color-text);
   background: var(--studio-color-surface-sunken);
-  color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.6;
@@ -148,7 +147,7 @@
 }
 
 .reactCode .scroll {
-  border-color: #3f3f46;
+  border-color: var(--studio-color-border-strong);
   scrollbar-color: #71717a #1c1c20;
 }
 

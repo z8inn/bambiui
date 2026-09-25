@@ -35,7 +35,7 @@ This is functional acceptance, not a complete visual or accessibility audit. Def
 - Allow manual edits with explicit contrast warnings.
 - Gate: boundary-input tests, deterministic outputs, contrast tests and visual palette review.
 
-### Implementation and validation
+### Stage 2 checkpoint (superseded where noted by stage 3)
 
 - `color-engine.ts`: dependency-free OKLCH generation with chroma-reduction gamut mapping, 12-step primary/secondary/neutral/semantic scales, and both light/dark recipes. Source remains separate from usage tones; semantic hues remain stable.
 - `color-builder.tsx`: generation is separate from application. Apply merges only 17 global colors, preserving numeric tokens, component overrides, name and schema. Source/recipes remain mounted across scope/view changes, but are not persisted after reload.
@@ -48,15 +48,37 @@ This is functional acceptance, not a complete visual or accessibility audit. Def
 
 ### Next-stage boundary
 
-Applying a palette is not yet a persistent multi-theme switch. Generated hover/active/subtle/focus recipes are inspectable, but current components still use their existing CSS constants and mixes. Legacy defaults remain unchanged, and current unchecked controls can still fail contrast. Stage 3 must integrate the roles, address these component failures, and complete keyboard/screen-reader/zoom checks. Passing generated recipes does not imply arbitrary combinations or the entire application meet WCAG.
+At the stage 2 checkpoint, palette application was not a multi-theme switch and interaction recipes were not wired to components. Stage 3 below supersedes those limitations. Passing generated recipes still does not imply arbitrary combinations or the entire application meet WCAG.
 
-## 3. Themes and component accessibility — next
+## 3. Themes and component accessibility — implemented; manual acceptance pending
 
 - Separate editor light/dark/system preference from design preview light/dark/comparison.
 - Integrate generated role tokens; fix variant surface calculations and token bypasses.
 - Distinguish unchecked, disabled and loading states.
 - Verify keyboard, focus, names, errors, decorative icons, reduced motion and zoom.
 - Gate: all six components in both themes; automated checks plus manual keyboard/screen-reader and 200% zoom review.
+
+### Implemented
+
+- Independent editor Light/Dark/System appearance, including live OS changes and portaled dialogs; no new preference persistence.
+- Design Light/Dark/Compare with persistent per-theme demo instances and an explicit editing-theme target. Theme switches do not recolor or overwrite either theme.
+- Normalized schema v3: `themes.light` and `themes.dark`, each with source/global/component values. Strict parsing; v1/v2 copy existing values independently into both themes without recoloring. v1 additions retain historical defaults. JSON exports include both themes and sources.
+- Both-theme CSS export with color-scheme, 160 variables per theme (27 global, 60 component, 15 constants and 58 derived values). Developer reference separates derived values from manual overrides.
+- Runtime and generated palettes use the same role derivation. Button hover/active no longer use brightness; unchecked controls no longer use grayscale/opacity; filled cards use their actual surface/ink; badge colors derive from their actual background and neutral outline honors explicit border overrides.
+- Decorative icons hidden from names; invalid token focus ring independent of error styling; comparison labels aligned with accessible names; reduced-motion component styles.
+- Per-theme generator drafts/source restoration. Application preserves the other theme, geometry and overrides. Import resets the generator workspace to imported sources.
+- Bounded derivation cache with fresh results, endpoint-search cleanup, and memoized shared exports prevent unrelated editor interactions from repeating expensive manual-color searches.
+
+### Validation and remaining gate
+
+- 93 Node tests passed (56 tokens, 27 engine/integration/CLI, 10 audit).
+- ESLint, TypeScript and production static build passed.
+- 49 Chromium smoke checks passed: original workspace/builder flows plus appearance isolation/system changes, both-theme component contrast/states, keyboard/AX names, sources after reload, comparison targeting/state, derived exports, invalid focus, badge override/reset, reduced motion and responsive checks.
+- Defaults pass 127 modeled color pairs per mode; user values and legacy palettes remain auditable, not silently corrected.
+- Screenshots reviewed for editor/preview themes, comparison, dialog and mobile. Short/narrow layout viewports use a stacked layout to avoid squeezing the canvas between fixed sidebars.
+- **Full manual acceptance remains open:** Chromium keyboard automation and AX-tree checks are not a real VoiceOver session. CSS zoom and effective viewport/DPR checks are not browser-native 200% zoom. See `docs/accessibility-checklist.md` for the required manual pass. No full WCAG claim.
+
+**Transition decision:** implementation and automated checks are complete. Keep manual accessibility acceptance explicitly open; do not label the full stage gate passed until reviewed.
 
 ## 4. Localization — planned
 

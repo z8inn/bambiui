@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Dialog } from "@base-ui/react/dialog";
 import { Tabs } from "@base-ui/react/tabs";
@@ -9,6 +9,8 @@ import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
 import { DeveloperView } from "./developer";
 import { ColorBuilder, ContrastReport } from "./color-builder";
+import { EditorThemeControl } from "./editor-theme";
+import type { PaletteMode } from "./color-engine";
 import {
   componentIds,
   defaultSystem,
@@ -21,6 +23,7 @@ import {
   type ComponentId,
   type ComponentTokens,
   type DesignSystem,
+  type ThemeTokens,
   type TokenField,
   type TokenValues,
 } from "./tokens";
@@ -66,7 +69,7 @@ function TokenControl({
       <div className="flex items-center justify-between gap-2">
         <label
           htmlFor={`token-${field.key}`}
-          className="text-[12px] text-zinc-600"
+          className="text-[12px] studio-text-secondary"
         >
           {field.label}
         </label>
@@ -142,7 +145,7 @@ function TokenControl({
         />
       )}
       {!valid && (
-        <p className="text-[10px] text-red-600" id={`error-${field.key}`}>
+        <p className="text-[10px] studio-text-danger" id={`error-${field.key}`}>
           {isColor
             ? "Use a six-digit hex color."
             : `Use a value from ${field.min} to ${field.max}.`}
@@ -155,11 +158,14 @@ function TokenControl({
 export default function Studio() {
   const [system, setSystem] = useState<DesignSystem>(defaultSystem);
   const [ready, setReady] = useState(false);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [selection, setSelection] = useState<Selection>("overview");
   const [scope, setScope] = useState<Scope>("global");
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
   const [view, setView] = useState<View>("design");
+  const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
+  const [compareThemes, setCompareThemes] = useState(false);
   const [previewContext, setPreviewContext] = useState<PreviewContext>("components");
   const [status, setStatus] = useState("Loading local draft…");
   const [notice, setNotice] = useState("");
@@ -207,40 +213,45 @@ export default function Studio() {
     setScope(next === "overview" ? "global" : "component");
   }
 
+  const theme = system.themes[activeTheme];
   const component = selection === "overview" ? "button" : selection;
   const isGlobal = scope === "global";
-  const values = isGlobal ? system.global : resolveComponent(system, component);
+  const values = isGlobal ? theme.global : resolveComponent(theme, component);
   const fields = tokenFields.filter(
     ({ key }) => isGlobal || isComponentKey(key),
   );
   const colorFields = fields.filter((field) => field.type === "color");
   const numberFields = fields.filter((field) => field.type === "number");
-  const overrideCount = Object.values(system.components).reduce(
+  const overrideCount = Object.values(theme.components).reduce(
     (count, tokens) => count + Object.keys(tokens).length,
     0,
   );
-  const output =
-    format === "css" ? exportCSS(system) : JSON.stringify(system, null, 2);
+  const cssOutput = useMemo(() => exportCSS({ themes: system.themes }), [system.themes]);
+  const output = format === "css" ? cssOutput : JSON.stringify(system, null, 2);
+
+  function updateTheme(next: ThemeTokens, mode: PaletteMode = activeTheme) {
+    update({ ...system, themes: { ...system.themes, [mode]: next } });
+  }
 
   function setToken(key: keyof TokenValues, value: string | number) {
     if (isGlobal)
-      update({ ...system, global: { ...system.global, [key]: value } });
+      updateTheme({ ...theme, global: { ...theme.global, [key]: value } });
     else
-      update({
-        ...system,
+      updateTheme({
+        ...theme,
         components: {
-          ...system.components,
-          [component]: { ...system.components[component], [key]: value },
+          ...theme.components,
+          [component]: { ...theme.components[component], [key]: value },
         },
       });
   }
 
   function resetToken(key: keyof ComponentTokens) {
-    const overrides = { ...system.components[component] };
+    const overrides = { ...theme.components[component] };
     delete overrides[key];
-    update({
-      ...system,
-      components: { ...system.components, [component]: overrides },
+    updateTheme({
+      ...theme,
+      components: { ...theme.components, [component]: overrides },
     });
   }
 
@@ -261,7 +272,7 @@ export default function Studio() {
     );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `bambi-tokens.${format}`;
+    anchor.download = `bambiui-tokens.${format}`;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -280,7 +291,7 @@ export default function Studio() {
           <span className="beta-tag">BETA</span>
         </Link>
         <div className="project-name">
-          <span className="text-zinc-300">/</span>
+          <span className="studio-text-muted">/</span>
           <input
             aria-label="Design system name"
             maxLength={80}
@@ -293,6 +304,7 @@ export default function Studio() {
           <span className="draft-tag">Draft</span>
         </div>
         <div className="header-actions">
+          <EditorThemeControl />
           <span className="save-status">
             <span
               className={`status-dot ${status === "Not saved" ? "warning" : ""}`}
@@ -328,7 +340,8 @@ export default function Studio() {
                 )
                   return;
                 update(imported);
-                setNotice("Design system imported successfully.");
+                setWorkspaceRevision((revision) => revision + 1);
+                setNotice("Design system imported successfully. Both themes are ready.");
               } catch (error) {
                 setNotice(
                   `Import failed: ${error instanceof Error ? error.message : "Invalid JSON file."}`,
@@ -368,10 +381,10 @@ export default function Studio() {
                     <Icon name="close" />
                   </Dialog.Close>
                 </div>
-                <Dialog.Description className="mt-2 text-sm text-zinc-500">
-                  Export CSS custom properties for your styles, or JSON to
-                  restore your workspace. Component markup and styles are not
-                  included.
+                <Dialog.Description className="mt-2 text-sm studio-text-muted">
+                  Export both themes as CSS variables (including derived states),
+                  or JSON with theme sources and overrides. Component markup and
+                  styles are not included.
                 </Dialog.Description>
                 <SegmentedControl
                   className="mt-5"
@@ -395,7 +408,7 @@ export default function Studio() {
                 >
                   <code>{output}</code>
                 </pre>
-                <p role="status" className="min-h-5 text-xs text-zinc-500">
+                <p role="status" className="min-h-5 text-xs studio-text-muted">
                   {copyStatus}
                 </p>
                 <div className="mt-3 flex justify-end gap-2">
@@ -444,7 +457,10 @@ export default function Studio() {
             setScope("global");
             document
               .getElementById("token-editor")
-              ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              ?.scrollIntoView({
+                              block: "nearest",
+                              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+                            });
           }}
         >
           Global tokens
@@ -471,7 +487,7 @@ export default function Studio() {
                 icon={<Icon name={id} />}
                 current={selection === id}
                 end={
-                  Object.keys(system.components[id]).length > 0 && (
+                  Object.keys(theme.components[id]).length > 0 && (
                     <>
                       <span
                         className="override-dot"
@@ -490,7 +506,7 @@ export default function Studio() {
           {!componentIds.some((id) =>
             id.includes(query.toLowerCase().trim()),
           ) && (
-            <p className="p-3 text-xs text-zinc-500">No components found.</p>
+            <p className="p-3 text-xs studio-text-muted">No components found.</p>
           )}
         </nav>
         <div className="sidebar-bottom">
@@ -576,6 +592,27 @@ export default function Studio() {
               </SegmentedControl>
             </div>
           </div>
+          <div className="theme-toolbar">
+            <div>
+              <strong>Design theme</strong>
+              <span>Editing {activeTheme} · independent of editor appearance</span>
+            </div>
+            <SegmentedControl
+              aria-label="Design theme"
+              value={compareThemes && view === "design" ? "compare" : activeTheme}
+              onValueChange={(next) => {
+                if (next === "compare") setCompareThemes(true);
+                else {
+                  setActiveTheme(next as PaletteMode);
+                  setCompareThemes(false);
+                }
+              }}
+            >
+              <SegmentedControl.Item value="light">Light</SegmentedControl.Item>
+              <SegmentedControl.Item value="dark">Dark</SegmentedControl.Item>
+              {view === "design" && <SegmentedControl.Item value="compare">Compare</SegmentedControl.Item>}
+            </SegmentedControl>
+          </div>
           <div className="preview-canvas">
             {notice && (
               <div role="status" className="notice">
@@ -622,12 +659,15 @@ export default function Studio() {
                     selected={selection}
                     system={system}
                     compact={compact}
+                    mode={activeTheme}
+                    compare={compareThemes}
+                    onModeChange={setActiveTheme}
                   />
                 </div>
               </Tabs.Root>
             </Tabs.Panel>
             <Tabs.Panel value="develop" keepMounted className="workspace-panel">
-              <DeveloperView selected={selection} system={system} />
+              <DeveloperView selected={selection} system={system} mode={activeTheme} cssOutput={cssOutput} />
             </Tabs.Panel>
             <div className="canvas-footnote">
               <Icon name="link" size={13} />
@@ -642,7 +682,7 @@ export default function Studio() {
             <span className="footer-separator">/</span>
             {tokenFields.length} global tokens
             <span className="footer-separator">/</span>
-            {overrideCount} overrides
+            {overrideCount} {activeTheme} overrides
           </span>
           <span>Made to be yours.</span>
         </footer>
@@ -655,7 +695,7 @@ export default function Studio() {
       >
         <div className="editor-title">
           <Icon name="sliders" />
-          <h2>Token inspector</h2>
+          <h2>Token inspector · {activeTheme}</h2>
           <span className="editor-count">{fields.length}</span>
         </div>
         <SegmentedControl
@@ -673,6 +713,7 @@ export default function Studio() {
           </SegmentedControl.Item>
         </SegmentedControl>
         <fieldset disabled={!ready} className="editor-fields">
+          <legend className="sr-only">Edit {activeTheme} theme tokens</legend>
           <div className="editor-intro">
             <span className="scope-icon">
               <Icon name={isGlobal ? "sliders" : component} size={18} />
@@ -699,15 +740,18 @@ export default function Studio() {
           {ready && (
             <div hidden={!isGlobal}>
               <ColorBuilder
+                key={workspaceRevision}
                 system={system}
-                onApply={(colors) => update({
-                  ...system,
-                  global: { ...system.global, ...colors },
-                })}
+                mode={activeTheme}
+                onApply={(colors, mode, source) => {
+                  const target = system.themes[mode];
+                  updateTheme({ ...target, source, global: { ...target.global, ...colors } }, mode);
+                  setActiveTheme(mode);
+                }}
               />
             </div>
           )}
-          <ContrastReport system={system} component={isGlobal ? undefined : component} />
+          <ContrastReport theme={theme} mode={activeTheme} component={isGlobal ? undefined : component} />
           {(
             [
               {
@@ -734,13 +778,13 @@ export default function Studio() {
               <div className={group.className}>
                 {group.items.map((field) => (
                   <TokenControl
-                    key={`${scope}-${component}-${field.key}`}
+                    key={`${activeTheme}-${scope}-${component}-${field.key}`}
                     field={field}
                     value={values[field.key as keyof typeof values]}
                     overridden={
                       isGlobal
                         ? undefined
-                        : Object.hasOwn(system.components[component], field.key)
+                        : Object.hasOwn(theme.components[component], field.key)
                     }
                     onChange={(value) => setToken(field.key, value)}
                     onReset={() =>
@@ -759,17 +803,17 @@ export default function Studio() {
               if (
                 !window.confirm(
                   isGlobal
-                    ? "Reset global tokens? Component overrides will be kept."
-                    : `Reset all ${component} overrides to global tokens?`,
+                    ? `Reset ${activeTheme} global tokens? Component overrides and the other theme will be kept.`
+                    : `Reset all ${activeTheme} ${component} overrides to global tokens?`,
                 )
               )
                 return;
-              update(
+              updateTheme(
                 isGlobal
-                  ? { ...system, global: { ...defaultSystem.global } }
+                  ? { ...theme, source: defaultSystem.themes[activeTheme].source, global: { ...defaultSystem.themes[activeTheme].global } }
                   : {
-                      ...system,
-                      components: { ...system.components, [component]: {} },
+                      ...theme,
+                      components: { ...theme.components, [component]: {} },
                     },
               );
             }}

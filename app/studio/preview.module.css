@@ -3,32 +3,11 @@
   max-width: 960px;
   min-width: 0;
   margin-inline: auto;
-  color: #34343a;
+  color: var(--studio-color-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.5;
-  color-scheme: light;
   container-type: inline-size;
-
-  /*
-   * System-wide interaction and elevation values shared by every component.
-   * They complement the editable tokens from toCSSVariables(), which are set
-   * inline on this element.
-   */
-  --ds-size-scale-sm: 0.875;
-  --ds-size-scale-lg: 1.125;
-  --ds-icon-size: 1.15em;
-  --ds-focus-ring-width: 2px;
-  --ds-focus-ring-offset: 3px;
-  --ds-state-hover-brightness: 0.94;
-  --ds-state-pressed-offset: 1px;
-  --ds-state-disabled-opacity: 0.4;
-  --ds-state-unchecked-opacity: 0.5;
-  --ds-text-muted-mix: 70%;
-  --ds-tone-text-mix: 60%;
-  --ds-tone-surface-mix: 12%;
-  --ds-shadow-elevated: 0 8px 24px #27272a0c;
-  --ds-transition-duration: 150ms;
 }
 
 .preview *,
@@ -55,7 +34,7 @@
 }
 
 .eyebrow {
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.13em;
@@ -71,14 +50,14 @@
 
 .intro {
   margin-top: 7px !important;
-  color: #686872;
+  color: var(--studio-color-text-muted);
 }
 
 .liveIndicator {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -87,8 +66,8 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #6c9b7c;
-  box-shadow: 0 0 0 3px #6c9b7c12;
+  background: var(--studio-color-success);
+  box-shadow: 0 0 0 3px var(--studio-color-shadow);
 }
 
 .grid {
@@ -100,10 +79,10 @@
 .showcase {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #e8e8ec;
+  border: 1px solid var(--studio-color-border);
   border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 2px 4px #24242b03;
+  background: var(--studio-color-surface);
+  box-shadow: 0 2px 4px var(--studio-color-shadow);
 }
 
 .showcaseHeader {
@@ -112,7 +91,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 17px 20px;
-  color: #34343a;
+  color: var(--studio-color-text);
 }
 
 .showcaseHeader h3 {
@@ -121,7 +100,7 @@
 }
 
 .showcaseBadge {
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 9px;
   letter-spacing: 0.07em;
 }
@@ -144,7 +123,7 @@
 
 .showcaseCaption {
   padding: 17px 20px;
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 10px;
 }
 
@@ -230,7 +209,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -331,7 +310,7 @@
 
 .previewFootnote {
   margin-top: 22px !important;
-  color: #686872;
+  color: var(--studio-color-text-muted);
   font-size: 10px;
   text-align: center;
 }

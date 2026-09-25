@@ -32,7 +32,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  border: 1px solid #71717a;
+  border: 1px solid var(--studio-color-border-strong);
   border-radius: 7px;
   background: var(--studio-color-surface);
 }
@@ -51,7 +51,7 @@
 }
 
 .sourceInput:has([aria-invalid="true"]) {
-  border-color: #b91c1c;
+  border-color: var(--studio-color-danger);
 }
 
 .sourceInput input:focus-visible,
@@ -86,7 +86,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  border: 1px solid #71717a;
+  border: 1px solid var(--studio-color-border-strong);
   border-radius: 4px;
 }
 
@@ -117,9 +117,9 @@
 
 .details .warning {
   padding: 8px;
-  border-left: 3px solid #92400e;
-  background: #fffbeb;
-  color: #78350f;
+  border-left: 3px solid var(--studio-color-warning);
+  background: var(--studio-color-warning-subtle);
+  color: var(--studio-color-warning);
 }
 
 .recipe {
@@ -148,7 +148,7 @@
 }
 
 .match {
-  color: #166534;
+  color: var(--studio-color-success-text);
   font-size: 10px;
 }
 

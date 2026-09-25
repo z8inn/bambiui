@@ -55,9 +55,13 @@ export function Button({
       data-icon-only={iconOnly || undefined}
       data-full-width={fullWidth || undefined}
     >
-      {loading ? <Spinner /> : startIcon}
+      {loading ? <Spinner /> : startIcon && (
+              <span className={styles.decorativeIcon} aria-hidden="true">{startIcon}</span>
+            )}
       {iconOnly && loading ? null : children}
-      {!iconOnly && endIcon}
+      {!iconOnly && endIcon && (
+              <span className={styles.decorativeIcon} aria-hidden="true">{endIcon}</span>
+            )}
     </BaseButton>
   );
 }

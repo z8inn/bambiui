@@ -2,6 +2,7 @@
 
 import {
   useId,
+  useMemo,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -17,12 +18,15 @@ import {
 } from "./components";
 
 import { Icon } from "./icons";
+import { Button as StudioButton } from "./controls";
+import type { PaletteMode } from "./color-engine";
 
 import {
   componentIds,
   toCSSVariables,
   type ComponentId,
   type DesignSystem,
+  type ThemeTokens,
 } from "./tokens";
 import styles from "./preview.module.css";
 
@@ -406,88 +410,97 @@ function Showcase({
   );
 }
 
-export function Preview({
-  selected,
-  system,
-  compact,
-}: {
+function ThemePane({ theme, mode, activeMode, compare, compact, onModeChange, children }: {
+  theme: ThemeTokens;
+  mode: PaletteMode;
+  activeMode: PaletteMode;
+  compare: boolean;
+  compact: boolean;
+  onModeChange: (mode: PaletteMode) => void;
+  children: ReactNode;
+}) {
+  const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
+  return (
+    <section
+      className="theme-pane"
+      data-active={mode === activeMode || undefined}
+      hidden={!compare && mode !== activeMode}
+      aria-label={`${title(mode)} preview`}
+    >
+      <header className="theme-pane-header" hidden={!compare}>
+        <strong>{title(mode)} theme{mode === activeMode ? " · editing" : ""}</strong>
+        <StudioButton onClick={() => onModeChange(mode)}>
+          Edit {mode} theme
+        </StudioButton>
+      </header>
+      <div
+        className={`${styles.preview} ${compact ? styles.compact : ""}`}
+        data-ds-theme={mode}
+        style={{ ...variables, colorScheme: mode } as CSSProperties}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
 
+export function Preview({ selected, system, compact, mode, compare, onModeChange }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   compact: boolean;
+  mode: PaletteMode;
+  compare: boolean;
+  onModeChange: (mode: PaletteMode) => void;
 }) {
-  const titleId = useId();
-  const scenarioTitleId = useId();
   const overview = selected === "overview";
   return (
-    <div
-      className={`${styles.preview} ${compact ? styles.compact : ""}`}
-      style={toCSSVariables(system) as CSSProperties}
-    >
-      {/* Hide rather than unmount so context changes preserve demo state. */}
-      <Tabs.Panel
-        value="components"
-        keepMounted
-        className={styles.contextPanel}
-      >
-        <div className={styles.previewHeading}>
-          <div>
-            <p className={styles.eyebrow}>YOUR SYSTEM, IN ACTION</p>
-            <h2 id={titleId}>
-              {overview
-                ? "Small pieces. Endless possibilities."
-                : componentMeta[selected].name}
-            </h2>
-            <p className={styles.intro}>
-              {overview
-                ? "A living collection, shaped by your design decisions."
-                : componentMeta[selected].description}
-            </p>
-          </div>
-          <span className={styles.liveIndicator}>
-            <span /> Live preview
-          </span>
-        </div>
-        <div className={overview ? styles.grid : undefined}>
-          {(overview ? componentIds : [selected as ComponentId]).map(
-            (id, index) => (
-              <Showcase
-                key={id}
-                id={id}
-                expanded={!overview}
-                badge={
-                  overview
-                    ? String(index + 1).padStart(2, "0")
-                    : "COMPONENT SPOTLIGHT"
-                }
-              />
-            ),
-          )}
+    <>
+      {/* Each context has one tab panel; both theme instances stay mounted. */}
+      <Tabs.Panel value="components" keepMounted className={styles.contextPanel}>
+        <div className={compare ? "theme-comparison" : undefined}>
+          {(["light", "dark"] as const).map((item) => (
+            <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
+              compare={compare} compact={compact} onModeChange={onModeChange}>
+              <div className={styles.previewHeading}>
+                <div>
+                  <p className={styles.eyebrow}>{item.toUpperCase()} · YOUR SYSTEM, IN ACTION</p>
+                  <h2>{overview ? "Small pieces. Endless possibilities." : componentMeta[selected].name}</h2>
+                  <p className={styles.intro}>
+                    {overview ? "A living collection, shaped by your design decisions." : componentMeta[selected].description}
+                  </p>
+                </div>
+                <span className={styles.liveIndicator}><span /> Live preview</span>
+              </div>
+              <div className={overview ? styles.grid : undefined}>
+                {(overview ? componentIds : [selected as ComponentId]).map((id, index) => (
+                  <Showcase key={id} id={id} expanded={!overview}
+                    badge={overview ? String(index + 1).padStart(2, "0") : "COMPONENT SPOTLIGHT"} />
+                ))}
+              </div>
+            </ThemePane>
+          ))}
         </div>
       </Tabs.Panel>
-      <Tabs.Panel
-        value="scenario"
-        keepMounted
-        className={styles.contextPanel}
-      >
-        <div className={styles.previewHeading}>
-          <div>
-            <p className={styles.eyebrow}>YOUR SYSTEM, IN CONTEXT</p>
-            <h2 id={scenarioTitleId}>One system. A real workspace.</h2>
-            <p className={styles.intro}>
-              All six components share your tokens here, even when the inspector
-              is focused on a selected component.
-            </p>
-          </div>
-          <span className={styles.liveIndicator}>
-            <span /> Live preview
-          </span>
+      <Tabs.Panel value="scenario" keepMounted className={styles.contextPanel}>
+        <div className={compare ? "theme-comparison" : undefined}>
+          {(["light", "dark"] as const).map((item) => (
+            <ThemePane key={item} theme={system.themes[item]} mode={item} activeMode={mode}
+              compare={compare} compact={compact} onModeChange={onModeChange}>
+              <div className={styles.previewHeading}>
+                <div>
+                  <p className={styles.eyebrow}>{item.toUpperCase()} · YOUR SYSTEM, IN CONTEXT</p>
+                  <h2>One system. A real workspace.</h2>
+                  <p className={styles.intro}>
+                    All six components share this theme. Changes in the inspector affect the {mode} theme only.
+                  </p>
+                </div>
+                <span className={styles.liveIndicator}><span /> Live preview</span>
+              </div>
+              <WorkspaceSettings />
+            </ThemePane>
+          ))}
         </div>
-        <WorkspaceSettings />
       </Tabs.Panel>
-      <p className={styles.previewFootnote}>
-        Built from the same tokens. Designed to belong together.
-      </p>
-    </div>
+    </>
   );
 }

@@ -4,7 +4,7 @@ A local-first design system playground built with Next.js, Tailwind CSS v4, and 
 
 ## Design studio
 
-- Edit 27 global tokens:
+- Edit 27 global tokens independently in each light/dark design theme:
   - Surface colors (background, foreground, muted, border)
   - Brand and status roles (primary, secondary, success, warning, danger and info, each with an on-color)
   - Radius, padding, gap, margin, font size and border width
@@ -15,20 +15,30 @@ A local-first design system playground built with Next.js, Tailwind CSS v4, and 
 - **Develop** view: inspect React usage, props/defaults, live token inheritance and overrides, and the full-system CSS variable export. Examples reference this project's components, not a published package.
 - Both views share the selected component and token inspector. Switching views or preview contexts preserves mounted demo state; the compact mobile-width canvas setting is retained.
 - Changes are saved in this browser using localStorage. No account, server storage, or cross-device sync is included.
-- Export CSS custom properties or a versioned JSON backup. CSS exports contain variables, not component markup or styles; consume the variables in your own components.
-- Import a JSON backup to restore a system. Imports are validated before replacing your draft. Version 1 backups and saved drafts are upgraded to version 2 automatically: their values are kept and the new tokens get their defaults.
+- Export both themes as CSS custom properties, including derived state colors and system constants, or as a version 3 JSON backup. Component markup and style rules are not included.
+- Import a JSON backup to restore a system. Imports are validated before replacing your draft. Version 1/2 backups and saved drafts are upgraded to version 3: existing values and overrides are copied independently into both themes without recoloring. Version 1 additions use historical defaults. Regenerate a theme explicitly if you want new accessible colors.
 
 Select a component in the sidebar to edit its tokens, or use **Global tokens** to change the shared foundations. Changes apply immediately. Color inputs accept six-digit hex values; numeric controls use pixels.
 
+## Themes and accessibility
+
+- **Editor appearance** in the header: Light / Dark / System. System follows live OS preference changes. This session-only preference affects editor chrome and dialogs, not design tokens.
+- **Design theme**: Light / Dark / Compare. Each theme retains its own source, global values and component overrides. Switching does not regenerate colors or replace either theme.
+- In **Compare**, use **Edit light theme** or **Edit dark theme** to target the inspector. Both previews stay interactive and retain their own demo state. Developer reference follows the editing theme; exports always include both.
+- CSS uses `:root, [data-ds-theme="light"]` and `[data-ds-theme="dark"]`. Apply the corresponding attribute to your consuming theme container.
+- Generated defaults now drive hover/pressed colors, badge subtle/outline roles, focus rings and filled-card text. Unchecked controls remain opaque; only disabled controls are dimmed. Decorative icons are excluded from accessible names, invalid token inputs retain a separate keyboard focus ring, and motion reduction disables component animation.
+
+The modeled default color audit passes **127 pairs per theme** (normal text 4.5:1, required boundaries/focus 3:1). Custom combinations and preserved legacy designs may fail and are reported, not silently rewritten. Browser tests cover keyboard and accessibility-tree semantics, but are **not a screen-reader session or full WCAG certification**. Manual VoiceOver and native browser-zoom acceptance remain outstanding; see [docs/accessibility-checklist.md](docs/accessibility-checklist.md).
+
 ## Color builder
 
-Open **Global tokens → Color builder**. Enter a six-digit brand color or choose a preset, then **Generate palettes**. Generation previews two recipes without changing your system. **Apply light colors** or **Apply dark colors** replaces the 17 global color tokens only; dimensions and component overrides stay intact. This does not switch the editor theme.
+Open **Global tokens → Color builder**. Enter a six-digit brand color or choose a preset, then **Generate palettes**. Generation previews two recipes without changing your system. **Apply light colors** or **Apply dark colors** replaces that theme’s 17 global colors and records its source; dimensions, component overrides and the other theme stay intact. The inspector switches to the target theme, but editor appearance does not change.
 
 The dependency-free engine uses OKLCH scales and reduces chroma to fit the sRGB gamut. Primary and neutral colors follow the source; success, warning, danger and info keep semantic green, amber, red and blue families. Source colors are kept separate from adjusted usage tones. Each recipe includes 12-step scales and solid, on-solid, hover, active, subtle, on-subtle, outline and focus roles.
 
-Generated recipes check normal text at 4.5:1 and boundaries/focus at 3:1 on their specified surfaces, using final hex colors. Raw scale stops do **not** guarantee arbitrary contrast pairs. The current-system report also checks modeled component mixes and enabled states, including overrides. It reports finite color pairs, **not full WCAG compliance**. Existing component interaction styles can still fail; integrating the generated interaction roles and completing accessibility verification is the next stage.
+Generated recipes check normal text at 4.5:1 and boundaries/focus at 3:1 on their specified surfaces, using final hex colors. Raw scale stops do **not** guarantee arbitrary contrast pairs. The current-system report also checks modeled component mixes and enabled states, including overrides. It reports finite color pairs, **not full WCAG compliance**. The same derivation powers rendered interaction colors and exported CSS. Impossible manual color combinations retain their explicit values and produce warnings rather than a false compliance claim.
 
-The builder retains its source and recipes only while the page stays open. CSS/JSON studio exports keep the applied tokens, not both palettes or the source. Generate a separate reproducible recipe from the CLI when needed:
+Applied sources and both themes are included in JSON backups. Unapplied generator drafts remain local to the open page, separately for each editing theme. CSS includes both themes’ current variables and derived states, not raw scales. Generate a separate reproducible recipe from the CLI when needed:
 
 ```bash
 node --experimental-strip-types scripts/generate-palette.mjs '#e8673c'
@@ -54,7 +64,7 @@ The tests cover inheritance, component isolation, CSS/JSON compatibility, invali
 
 ## Studio smoke tests
 
-After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context state retention, token inheritance, preview colors, keyboard tabs, palette generation/application, manual contrast warnings, CSS/JSON exports and the narrow-screen layout. Add `--screenshots` to capture light/dark palette previews in `.next/color-review/`. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
+After building, run `node scripts/studio-smoke.mjs` with Node.js 22+ and Google Chrome installed. The dependency-free harness checks view/context state retention, independent themes and sources, editor/system appearance, computed component contrast, keyboard/AX semantics, reduced motion, generation/application, manual warnings, CSS/JSON exports and responsive reflow. Zoom checks use CSS scaling and effective viewport/DPR emulation, not native browser zoom. Add `--screenshots` to capture light/dark palette previews in `.next/color-review/`. It serves `out/` locally and uses a temporary browser profile; your regular browser data is not used. Set `CHROME_PATH` to override the default macOS Chrome executable.
 
 See [docs/roadmap.md](docs/roadmap.md) for staged scope, validation results and remaining accessibility work.
 

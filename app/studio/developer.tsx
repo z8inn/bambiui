@@ -5,16 +5,21 @@ import { highlight } from "sugar-high";
 import { Button } from "./controls";
 import { snippets } from "./snippets";
 import {
-  exportCSS,
+
   toCSSVariables,
+  tokenFields,
+  componentTokenKeys,
   type ComponentId,
   type DesignSystem,
 } from "./tokens";
 import styles from "./developer.module.css";
+import type { PaletteMode } from "./color-engine";
 
 export type DeveloperViewProps = {
   selected: "overview" | ComponentId;
   system: DesignSystem;
+  mode: PaletteMode;
+  cssOutput: string;
 };
 
 type PropRow = readonly [prop: string, type: string, defaultValue: string, notes: string];
@@ -156,11 +161,15 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
   );
 }
 
-export function DeveloperView({ selected, system }: DeveloperViewProps) {
+export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperViewProps) {
   const component = selected === "overview" ? null : reference[selected];
-  const variables = toCSSVariables(system);
+  const theme = system.themes[mode];
+  const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
   const prefix = selected === "overview" ? "--ds-" : `--${selected}-`;
-  const tokens = Object.entries(variables).filter(([name]) => name.startsWith(prefix));
+  const editableNames = new Set((selected === "overview" ? tokenFields.map(({ key }) => key) : [...componentTokenKeys])
+    .map((key) => `${prefix}${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`));
+  const tokens = Object.entries(variables).filter(([name]) => editableNames.has(name));
+  const derived = Object.entries(variables).filter(([name]) => name.startsWith(prefix) && !editableNames.has(name));
 
   return (
     <div className={styles.root}>
@@ -172,7 +181,7 @@ export function DeveloperView({ selected, system }: DeveloperViewProps) {
             ? "React usage, component props and live token inheritance."
             : "Select a component in the studio to see its React usage and API reference."}
         </p>
-        <p className={styles.systemName}>System: {system.name}</p>
+        <p className={styles.systemName}>System: {system.name} · {mode} theme · source {system.themes[mode].source}</p>
       </header>
 
       {selected !== "overview" && component && (
@@ -230,13 +239,28 @@ export function DeveloperView({ selected, system }: DeveloperViewProps) {
         </ScrollRegion>
       </section>
 
+      {derived.length > 0 && (
+        <section className={styles.section}>
+          <h3>Derived colors and system constants</h3>
+          <p>Computed from the {mode} theme’s current values; these are not manual component overrides.</p>
+          <ScrollRegion label="Derived theme variables">
+            <table className={styles.table}>
+              <caption>{mode} runtime variables</caption>
+              <thead><tr><th scope="col">CSS variable</th><th scope="col">Value</th></tr></thead>
+              <tbody>{derived.map(([name, value]) => (
+                <tr key={name}><th scope="row"><code>{name}</code></th><td><code>{value}</code></td></tr>
+              ))}</tbody>
+            </table>
+          </ScrollRegion>
+        </section>
+      )}
       <section className={styles.section}>
         <h3>CSS variable export</h3>
-        <p>Full-system export: global variables and aliases for every component, not only the selection. These are CSS variables, not full components. React implementations, component styles and preview system constants are not included.</p>
+        <p>Both themes, including aliases, derived state colors and system constants. Light is the root default; set <code>{'data-ds-theme="dark"'}</code> on your theme container for dark mode. Component markup and style rules are not included.</p>
         <details className={styles.export}>
           <summary>Show full-system CSS variables</summary>
           <ScrollRegion label="Full-system CSS variable export">
-            <pre className={styles.code}><code>{exportCSS(system)}</code></pre>
+            <pre className={styles.code}><code>{cssOutput}</code></pre>
           </ScrollRegion>
         </details>
       </section>

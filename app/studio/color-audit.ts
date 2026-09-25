@@ -1,6 +1,7 @@
-import type { ComponentId, DesignSystem } from "./tokens";
-import { componentIds, resolveComponent } from "./tokens.ts";
-import { contrastRatio, mixColors } from "./color-engine.ts";
+import type { ComponentId, ThemeTokens } from "./tokens";
+import type { PaletteMode } from "./color-engine";
+import { resolveComponent, toCSSVariables } from "./tokens.ts";
+import { contrastRatio } from "./color-engine.ts";
 
 export type ContrastCheck = {
   id: string;
@@ -14,39 +15,24 @@ export type ContrastCheck = {
 };
 
 const roles = [
-  ["primary", "onPrimary"],
-  ["secondary", "onSecondary"],
-  ["success", "onSuccess"],
-  ["warning", "onWarning"],
-  ["danger", "onDanger"],
-  ["info", "onInfo"],
+  ["primary", "onPrimary"], ["secondary", "onSecondary"],
+  ["success", "onSuccess"], ["warning", "onWarning"],
+  ["danger", "onDanger"], ["info", "onInfo"],
 ] as const;
 
-/** CSS filter functions operate on encoded sRGB, not WCAG linear luminance. */
-function uncheckedColor(color: string, surface: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
-  const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // Apply group opacity AFTER grayscale, retaining precision until final hex.
-  return `#${[1, 3, 5].map((i) =>
-    Math.round(gray * 0.5 + parseInt(surface.slice(i, i + 2), 16) * 0.5)
-      .toString(16).padStart(2, "0"),
-  ).join("")}`;
-}
-
 /**
- * Finite current-CSS diagnostics, NOT accessibility certification. Assumes valid
- * opaque #rrggbb system tokens, normal-size text (4.5), and non-text marks/visible
- * borders (3). Components sit on the global background; nested/custom backgrounds,
- * images, antialiasing, shadows, focus geometry, invalid and disabled states are
- * not modeled. A border pair is omitted when its resolved width is zero; neither
- * omission nor a passing color pair establishes that a control is identifiable.
- *
- * Constants mirror preview.module.css and components.module.css, not generated
- * palette role recipes. Mixes/filters are represented as final 8-bit sRGB colors
- * through the engine helpers; ratios are never rounded before pass/fail.
+ * Finite current-CSS diagnostics, not accessibility certification. Models opaque
+ * #rrggbb tokens, normal text (4.5), marks and rendered boundaries (3). Components
+ * sit on the global background; offset focus rings also cover muted surroundings.
+ * Disabled states, custom/nested surfaces, shadows and focus geometry are excluded.
+ * Identical painted pairs shared by states are checked once. Filled controls need
+ * an outer edge, not contrast between their border and their own solid fill;
+ * unfilled controls additionally check the border against their interior surface.
+ * Zero-width and transparent borders are omitted, not reported as compliant.
  */
-export function auditSystemColors(system: DesignSystem): ContrastCheck[] {
-  const g = system.global;
+export function auditSystemColors(theme: ThemeTokens, mode: PaletteMode = "light"): ContrastCheck[] {
+  const g = theme.global;
+  const v = toCSSVariables(theme, mode);
   const checks: ContrastCheck[] = [];
   function add(id: string, label: string, foreground: string, background: string,
     minimum = 4.5, component?: ComponentId) {
@@ -54,100 +40,98 @@ export function auditSystemColors(system: DesignSystem): ContrastCheck[] {
     checks.push({ id, label, foreground, background, ratio, minimum,
       passes: ratio >= minimum, ...(component ? { component } : {}) });
   }
+  function boundary(component: ComponentId, id: string, label: string, stroke: string, inside?: string) {
+    if (resolveComponent(theme, component).borderWidth <= 0) return;
+    add(id, `${label} on global background`, stroke, g.background, 3, component);
+    if (inside !== undefined) add(`${id}.inside`, `${label} on interior surface`, stroke, inside, 3, component);
+  }
 
-  // Seventeen global text/on-role/link pairs, independent of component quirks.
   for (const surface of ["background", "muted"] as const) {
     for (const ink of ["foreground", "mutedForeground"] as const) {
       add(`global.${ink}.${surface}`, `${ink} on ${surface}`, g[ink], g[surface]);
     }
+    if (g.borderWidth > 0) add(`global.border.${surface}`, `Global border on ${surface}`, g.border, g[surface], 3);
   }
   for (const [role, onRole] of roles) {
     add(`global.${onRole}.${role}`, `${onRole} on ${role}`, g[onRole], g[role]);
     add(`global.${role}.background`, `${role} text on background`, g[role], g.background);
   }
   add("global.primary.muted", "Primary link on muted", g.primary, g.muted);
-  if (g.borderWidth > 0) {
+
+  for (const component of ["button", "input", "switch", "checkbox"] as const) {
     for (const surface of ["background", "muted"] as const) {
-      add(`global.border.${surface}`, `Global border on ${surface}`, g.border, g[surface], 3);
+      add(`${component}.focus.${surface}`, `${component} offset focus ring on ${surface}`,
+        v["--ds-primary-focus"], g[surface], 3, component);
     }
   }
-
-  for (const component of componentIds) {
-    const c = resolveComponent(system, component);
-    const choice = component === "switch" || component === "checkbox";
-    add(`${component}.foreground`, choice
-      ? `${component} checked ${component === "switch" ? "thumb" : "mark"} on fill`
-      : `${component} resolved text on background`, c.foreground, c.background, choice ? 3 : 4.5, component);
-    if (c.borderWidth > 0) {
-      const state = choice ? "checked " : component === "badge" ? "neutral outline "
-        : component === "card" ? "outlined " : component === "button" ? "primary " : "";
-      add(`${component}.boundary`, `${component} ${state}border on global surface`,
-        c.border, g.background, 3, component);
-    }
-    if (choice) {
-      const fill = uncheckedColor(c.background, g.background);
-      if (c.borderWidth > 0) {
-        add(`${component}.unchecked.boundary`, `${component} enabled unchecked boundary on global surface`,
-          uncheckedColor(c.border, g.background), g.background, 3, component);
-      }
-      add(`${component}.unchecked.fill`, `${component} enabled unchecked fill on global surface`,
-        fill, g.background, 3, component);
-      if (component === "switch") {
-        add("switch.unchecked.thumb", "Switch enabled unchecked thumb on track",
-          uncheckedColor(c.foreground, g.background), fill, 3, component);
-      }
-    }
-    if (component === "input" || choice) {
-      add(`${component}.label`, `${component} label on global surface`, g.foreground, g.background, 4.5, component);
-      add(`${component}.description`, `${component} description on global surface`, g.mutedForeground, g.background, 4.5, component);
-    }
+  for (const component of ["input", "switch", "checkbox"] as const) {
+    add(`${component}.label`, `${component} label on global surface`, g.foreground, g.background, 4.5, component);
+    add(`${component}.description`, `${component} description on global surface`, g.mutedForeground, g.background, 4.5, component);
+    add(`${component}.error`, `${component} error on global surface`, g.danger, g.background, 4.5, component);
   }
 
-  const button = resolveComponent(system, "button");
-  for (const [variant, ink, fill] of [
-    ["primary", button.foreground, button.background],
-    ["secondary", g.onSecondary, g.secondary],
-    ["destructive", g.onDanger, g.danger],
+  const button = resolveComponent(theme, "button");
+  add("button.foreground", "Button resolved text on background", button.foreground, button.background, 4.5, "button");
+  boundary("button", "button.boundary", "Button primary border", button.border);
+  for (const [variant, ink, fill, prefix, stroke] of [
+    ["primary", button.foreground, button.background, "--button", button.border],
+    ["secondary", g.onSecondary, g.secondary, "--ds-secondary", g.secondary],
+    ["destructive", g.onDanger, g.danger, "--ds-danger", g.danger],
   ]) {
     add(`button.${variant}.text`, `Button ${variant} text`, ink, fill, 4.5, "button");
-    // brightness(.94) filters BOTH opaque ink and fill, not their WCAG luminance.
-    add(`button.${variant}.hover`, `Button ${variant} hover text (brightness .94)`,
-      mixColors(ink, "#000000", 0.94), mixColors(fill, "#000000", 0.94), 4.5, "button");
+    for (const state of ["hover", "active"]) {
+      add(`button.${variant}.${state}`, `Button ${variant} ${state} text`, ink, v[`${prefix}-${state}`], 4.5, "button");
+    }
+    if (variant !== "primary") boundary("button", `button.${variant}.boundary`, `Button ${variant} border (all states)`, stroke);
   }
-  for (const variant of ["outline", "ghost"]) {
-    add(`button.${variant}.text`, `Button ${variant} text on global surface`, g.foreground, g.background, 4.5, "button");
-    add(`button.${variant}.hover`, `Button ${variant} hover text on muted`, g.foreground, g.muted, 4.5, "button");
+  for (const variant of ["outline", "ghost", "link"]) {
+    const ink = variant === "link" ? g.primary : g.foreground;
+    add(`button.${variant}.text`, `Button ${variant} text on global surface`, ink, g.background, 4.5, "button");
+    for (const state of ["hover", "active"]) {
+      add(`button.${variant}.${state}`, `Button ${variant} ${state} text`, ink, variant === "link" ? g.background : g.muted, 4.5, "button");
+    }
   }
-  if (button.borderWidth > 0) {
-    add("button.outline.boundary", "Button outline border on global surface", g.border, g.background, 3, "button");
+  boundary("button", "button.outline.boundary", "Button outline border", g.border);
+  boundary("button", "button.outline.hover.boundary", "Button outline hover/active border", g.border, g.muted);
+
+  const input = resolveComponent(theme, "input");
+  add("input.foreground", "Input text (normal/hover/active/invalid/focus)", input.foreground, input.background, 4.5, "input");
+  add("input.placeholder", "Input placeholder (including invalid/focus)", g.mutedForeground, input.background, 4.5, "input");
+  add("input.readonly.text", "Read-only input text on resolved background", input.foreground, input.background, 4.5, "input");
+  add("input.readonly.placeholder", "Read-only input placeholder on resolved background", g.mutedForeground, input.background, 4.5, "input");
+  boundary("input", "input.boundary", "Input normal/read-only border", input.border, input.background);
+  boundary("input", "input.invalid.boundary", "Input invalid border", g.danger, input.background);
+
+  for (const component of ["switch", "checkbox"] as const) {
+    const c = resolveComponent(theme, component);
+    add(`${component}.foreground`, `${component} checked ${component === "switch" ? "thumb" : "mark (also indeterminate)"} on fill`, c.foreground, c.background, 3, component);
+    boundary(component, `${component}.boundary`, `${component} checked border`, c.border);
+    boundary(component, `${component}.unchecked.boundary`, `${component} enabled unchecked boundary`, g.border, g.muted);
+    boundary(component, `${component}.invalid.boundary`, `${component} invalid checked border`, v["--ds-danger-outline"]);
+    boundary(component, `${component}.unchecked.invalid.boundary`, `${component} invalid unchecked border`, v["--ds-danger-outline"], g.muted);
+    if (component === "switch") add("switch.unchecked.thumb", "Switch enabled unchecked thumb on track", g.foreground, g.muted, 3, component);
   }
-  add("button.link.text", "Button link text on global surface", g.primary, g.background, 4.5, "button");
 
-  const input = resolveComponent(system, "input");
-  // Current ::placeholder uses mutedForeground directly, NOT the 70% text mix.
-  // Assumes opaque placeholder rendering; browser-specific UA opacity is excluded.
-  add("input.placeholder", "Input placeholder on resolved background", g.mutedForeground, input.background, 4.5, "input");
-  add("input.readonly.text", "Read-only input text on muted", input.foreground, g.muted, 4.5, "input");
-  add("input.readonly.placeholder", "Read-only input placeholder on muted", g.mutedForeground, g.muted, 4.5, "input");
+  const card = resolveComponent(theme, "card");
+  add("card.foreground", "Card outlined/elevated text", card.foreground, card.background, 4.5, "card");
+  add("card.description", "Card outlined/elevated description", v["--card-description"], card.background, 4.5, "card");
+  add("card.filled.text", "Filled card global text on muted", g.foreground, g.muted, 4.5, "card");
+  add("card.filled.description", "Filled card description on muted", v["--card-filled-description"], g.muted, 4.5, "card");
+  boundary("card", "card.boundary", "Card outlined border", card.border, card.background);
 
-  const card = resolveComponent(system, "card");
-  const description = mixColors(card.foreground, card.background, 0.7);
-  add("card.description", "Card description (70% foreground) on background", description, card.background, 4.5, "card");
-  add("card.filled.text", "Filled card text on muted", card.foreground, g.muted, 4.5, "card");
-  // Filled changes the painted surface, but the description STILL mixes with card-background.
-  add("card.filled.description", "Filled card description (mix retains card background) on muted", description, g.muted, 4.5, "card");
-
-  const badge = resolveComponent(system, "badge");
+  const badge = resolveComponent(theme, "badge");
+  // Neutral solid reverses the component ink/surface; its ratio is symmetric.
+  add("badge.foreground", "Badge neutral solid text", badge.background, badge.foreground, 4.5, "badge");
   for (const tone of ["neutral", "primary", "success", "warning", "danger", "info"] as const) {
     const role = roles.find(([name]) => name === tone);
     const fill = role ? g[role[0]] : badge.foreground;
     const onFill = role ? g[role[1]] : badge.background;
-    const ink = role ? mixColors(fill, g.foreground, 0.6) : badge.foreground;
+    const ink = v[`--badge-${tone}-on-subtle`];
     add(`badge.${tone}.solid`, `Badge ${tone} solid text`, onFill, fill, 4.5, "badge");
-    add(`badge.${tone}.subtle`, `Badge ${tone} subtle text (12% tone surface)`,
-      ink, mixColors(fill, badge.background, 0.12), 4.5, "badge");
-    // Outline keeps an OPAQUE badge-background, even when overridden.
+    add(`badge.${tone}.subtle`, `Badge ${tone} subtle text`, ink, v[`--badge-${tone}-subtle`], 4.5, "badge");
     add(`badge.${tone}.outline`, `Badge ${tone} outline text on badge background`, ink, badge.background, 4.5, "badge");
+    boundary("badge", `badge.${tone}.solid.boundary`, `Badge ${tone} solid border`, fill);
+    boundary("badge", `badge.${tone}.outline.boundary`, `Badge ${tone} outline border`, v[`--badge-${tone}-outline`], badge.background);
   }
   return checks;
 }

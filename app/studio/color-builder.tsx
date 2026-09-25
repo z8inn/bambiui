@@ -8,10 +8,11 @@ import {
   paletteRoles,
   type ColorTokens,
   type GeneratedTheme,
+  type GeneratedPalette,
   type PaletteMode,
 } from "./color-engine";
 import { auditSystemColors } from "./color-audit";
-import type { ComponentId, DesignSystem } from "./tokens";
+import type { ComponentId, DesignSystem, ThemeTokens } from "./tokens";
 import styles from "./color-builder.module.css";
 
 const presets = [
@@ -29,7 +30,7 @@ const ratioText = (ratio: number) => (Math.floor(ratio * 100) / 100).toFixed(2);
 function ThemeRecipe({ mode, theme, current, onApply }: {
   mode: PaletteMode;
   theme: GeneratedTheme;
-  current: DesignSystem["global"];
+  current: ThemeTokens["global"];
   onApply: (tokens: ColorTokens) => void;
 }) {
   const matches = Object.entries(theme.tokens).every(
@@ -60,7 +61,7 @@ function ThemeRecipe({ mode, theme, current, onApply }: {
       </Button>
       <details className={styles.details}>
         <summary>{title(mode)} role recipes & contrast</summary>
-        <p>Generated recipes, not current component styles. Hover, active, subtle and focus roles are prepared for the theme integration stage.</p>
+        <p>The same derivation powers component hover, active, subtle and focus colors. Component overrides can produce different results; check the selected theme’s report.</p>
         {paletteRoles.map((role) => {
           const colors = theme.roles[role];
           return (
@@ -90,21 +91,30 @@ function ThemeRecipe({ mode, theme, current, onApply }: {
   );
 }
 
-export function ColorBuilder({ system, onApply }: {
+export function ColorBuilder({ system, mode, onApply }: {
   system: DesignSystem;
-  onApply: (tokens: ColorTokens) => void;
+  mode: PaletteMode;
+  onApply: (tokens: ColorTokens, mode: PaletteMode, source: string) => void;
 }) {
   const id = useId();
-  const [source, setSource] = useState(system.global.primary);
-  const [palette, setPalette] = useState(() => generatePalette(system.global.primary));
-  const [message, setMessage] = useState("");
+  const [drafts, setDrafts] = useState<Record<PaletteMode, { source: string; palette: GeneratedPalette; message: string }>>(() => ({
+    light: { source: system.themes.light.source, palette: generatePalette(system.themes.light.source), message: "" },
+    dark: { source: system.themes.dark.source, palette: generatePalette(system.themes.dark.source), message: "" },
+  }));
+  const { source, palette, message } = drafts[mode];
+
+  function changeSource(next: string) {
+    setDrafts((current) => ({ ...current, [mode]: { ...current[mode], source: next, message: "" } }));
+  }
   const valid = validHex(source);
   const stale = !valid || source.toLowerCase() !== palette.source;
 
   function generate(next: string) {
-    setSource(next);
-    setPalette(generatePalette(next));
-    setMessage("Light and dark palettes generated. Review them before applying.");
+    setDrafts((current) => ({ ...current, [mode]: {
+      source: next,
+      palette: generatePalette(next),
+      message: "Light and dark palettes generated. Review them before applying.",
+    } }));
   }
 
   return (
@@ -117,7 +127,7 @@ export function ColorBuilder({ system, onApply }: {
           type="color"
           aria-label="Source brand color picker"
           value={valid ? source : palette.source}
-          onChange={(event) => { setSource(event.target.value); setMessage(""); }}
+          onChange={(event) => changeSource(event.target.value)}
         />
         <input
           id={`${id}-source`}
@@ -127,7 +137,7 @@ export function ColorBuilder({ system, onApply }: {
           autoComplete="off"
           aria-invalid={!valid}
           aria-describedby={`${id}-help`}
-          onChange={(event) => { setSource(event.target.value); setMessage(""); }}
+          onChange={(event) => changeSource(event.target.value)}
         />
       </div>
       <p id={`${id}-help`}>
@@ -143,22 +153,27 @@ export function ColorBuilder({ system, onApply }: {
       </div>
       <div className={styles.actions}>
         <Button disabled={!valid} onClick={() => generate(source)}>Generate palettes</Button>
-        <Button onClick={() => generate(system.global.primary)}>Use current primary</Button>
+        <Button onClick={() => generate(system.themes[mode].global.primary)}>Use current primary</Button>
+                <Button onClick={() => generate(system.themes[mode].source)}>Use {mode} source</Button>
       </div>
       <p role="status" className={styles.feedback}>{message}</p>
       <details className={styles.details} open>
         <summary>Generated from <code>{palette.source}</code></summary>
         {stale && <p className={styles.warning}>Source changed. Generate again to update these recipes; they still use {palette.source}.</p>}
-        <p>Applying replaces all 17 global colors. Spacing and component overrides stay unchanged. This is not an editor theme switch.</p>
+        <p>Apply light or dark to replace that theme’s 17 global colors and source. Its spacing, overrides and the other theme stay unchanged. Editor appearance is independent.</p>
         {(["light", "dark"] as const).map((mode) => (
           <ThemeRecipe
             key={mode}
             mode={mode}
             theme={palette[mode]}
-            current={system.global}
+            current={system.themes[mode].global}
             onApply={(tokens) => {
-              onApply(tokens);
-              setMessage(`${title(mode)} global colors applied from ${palette.source}. Component overrides were kept. Check current contrast below.`);
+              onApply(tokens, mode, palette.source);
+              setDrafts((current) => ({ ...current, [mode]: {
+                source: palette.source,
+                palette,
+                message: `${title(mode)} theme colors applied from ${palette.source}. Overrides and the other theme were kept. Check current contrast below.`,
+              } }));
             }}
           />
         ))}
@@ -180,18 +195,18 @@ export function ColorBuilder({ system, onApply }: {
           </div>
         ))}
       </details>
-      <p>Source and generated recipes are kept while this page stays open, not after a reload. Existing CSS/JSON exports contain applied tokens only, not the source or both recipes.</p>
+      <p>Applying records the source in that theme’s JSON backup. Unapplied candidates stay in this page only. CSS exports both themes and their derived states; raw scales are available through the recipe CLI.</p>
     </section>
   );
 }
 
-export function ContrastReport({ system, component }: { system: DesignSystem; component?: ComponentId }) {
-  const checks = useMemo(() => auditSystemColors(system), [system]);
+export function ContrastReport({ theme, mode, component }: { theme: ThemeTokens; mode: PaletteMode; component?: ComponentId }) {
+  const checks = useMemo(() => auditSystemColors(theme, mode), [theme, mode]);
   const scoped = component ? checks.filter((check) => check.component === component) : checks;
   const failures = scoped.filter((check) => !check.passes);
   return (
     <section className={styles.report} aria-label="Current contrast checks">
-      <h3>{component ? `${title(component)} contrast` : "Current system contrast"}</h3>
+      <h3>{title(mode)} · {component ? `${title(component)} contrast` : "Current system contrast"}</h3>
       <p role="status" aria-atomic="true">
         {failures.length > 0
           ? `${failures.length} of ${scoped.length} checked color pairs need attention.`

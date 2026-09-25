@@ -46,11 +46,11 @@ async function font(file: string) {
 }
 
 const swatches = [
-  defaultSystem.global.primary,
-  defaultSystem.global.success,
-  defaultSystem.global.warning,
-  defaultSystem.global.danger,
-  defaultSystem.global.info,
+  defaultSystem.themes.light.global.primary,
+  defaultSystem.themes.light.global.success,
+  defaultSystem.themes.light.global.warning,
+  defaultSystem.themes.light.global.danger,
+  defaultSystem.themes.light.global.info,
 ];
 
 export const socialImageSize = { width: 1200, height: 630 };

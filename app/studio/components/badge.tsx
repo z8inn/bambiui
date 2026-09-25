@@ -35,7 +35,9 @@ export function Badge({
       data-size={size}
     >
       {dot && <span className={styles.badgeDot} aria-hidden="true" />}
-      {startIcon}
+      {startIcon && (
+        <span className={styles.decorativeIcon} aria-hidden="true">{startIcon}</span>
+      )}
       {children}
     </span>
   );

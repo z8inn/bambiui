@@ -67,14 +67,17 @@ Current components:
 
 ## 4. Design tokens
 
-- **Global tokens** (`app/studio/tokens.ts`, editable, exported as `--ds-*`):
+- **Theme model** (`app/studio/tokens.ts`): schema v3 stores `themes.light` and `themes.dark`, each with a source, global tokens and component overrides. Theme selection is UI state, not destructive palette application. v1/v2 migrate by copying their exact values into both themes independently.
+- **Global tokens** (`app/studio/tokens.ts`, editable per theme, exported as `--ds-*`):
   - Surfaces: `background`, `foreground`, `muted`, `mutedForeground`, `border`
   - Roles: `primary`, `secondary`, `success`, `warning`, `danger` and `info`, each with an `on*` foreground
   - Shape and spacing: `radius`, `paddingX`, `paddingY`, `gap`, `margin`, `fontSize`, `borderWidth`
   - Size scale: `controlHeightSm`, `controlHeightMd`, `controlHeightLg`
 - **Component tokens** (editable per component, exported as `--{component}-{token}`): `background`, `foreground`, `border`, `radius`, `paddingX`, `paddingY`, `gap`, `margin`, `fontSize`, `borderWidth`. They inherit from the global tokens until overridden.
-- **System constants** (not yet editable, defined on the theme root in `preview.module.css`): `--ds-state-*`, `--ds-focus-ring-*`, `--ds-size-scale-{sm,lg}`, `--ds-icon-size`, `--ds-tone-*-mix`, `--ds-shadow-elevated`, `--ds-transition-duration`.
-- No hard-coded colors or sizes in component CSS. Every value comes from one of these three layers. Variants and tones are expressed by remapping local custom properties (`--button-fill`, `--tone`) to tokens.
+- **Derived roles** (`color-engine.ts`, emitted by `toCSSVariables(theme, mode)`): role hover, active, subtle, on-subtle, outline and focus colors; component-specific Button/Badge derivatives; Card description ink. Recomputed from current tokens, including overrides, not from the saved source. Invalid manual pairs are reported rather than silently rewritten.
+- **System constants** (not editable, `systemConstants` in `tokens.ts`): state opacity/offset, focus geometry, size/icon scale, spacing insets, elevation and motion. Both preview and CSS export consume the same map.
+- No hard-coded colors or sizes in component CSS. Values come from these layers. Variants and tones remap local custom properties (`--button-fill`, `--tone`). Filled Card uses global muted/foreground and a description derived from that surface. Badge neutral outline honors an explicit border override; semantic tones use role outlines.
+- CSS export includes both theme selectors and derived/system variables, not component markup or style rules.
 - Adding a global token requires updating `TokenValues`, `defaultSystem`, `tokenFields`, the schema migration in `parseDesignSystem`, and `tokens.test.mjs`.
 
 ## 5. Accessibility checklist
@@ -91,7 +94,8 @@ Current components:
   - View switchers use Tabs.
   - Navigation lists use `aria-current`.
 - Do not convey information with color alone. Status dots get text or a visually hidden label.
-- Accessibility target: 4.5:1 for normal text and 3:1 where UI-boundary contrast is required. `color-engine.ts` verifies generated recipe pairs on their specified surfaces. Legacy defaults and current component states do not all meet this target yet; the color inspector reports modeled failures. Do not claim full compliance from a passing palette. Tone text on tinted surfaces currently mixes toward the global foreground using `--ds-tone-text-mix`; verify the resulting pair, especially with overrides.
+- Accessibility target: 4.5:1 for normal text and 3:1 where UI-boundary/focus contrast is required. Generated defaults pass 127 modeled pairs per theme; `color-audit.ts` follows current state variables. Preserved legacy values and arbitrary manual combinations may fail; report them explicitly. No blanket compliance claim from a passing palette or audit. Badge text/outline and filled-card descriptions must use the derivatives for their actual surfaces.
+- Manual screen-reader and native browser-zoom acceptance is tracked in `docs/accessibility-checklist.md`.
 - Respect `prefers-reduced-motion`.
 
 ## 6. Checklist for a new component

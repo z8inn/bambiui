@@ -92,6 +92,62 @@ function tone(lightness: number, { c, h }: Family): string {
   return hex(channels.map(encoded) as RGB);
 }
 
+const roleColorsCache = new Map<string, RoleColors>();
+const roleColorsCacheLimit = 256;
+
+/** Derive usage colors without rewriting manual solid/ink values.
+ * Unsatisfiable constraints fall back to the supplied solid; callers must audit
+ * the returned pairs rather than treating derivation as a contrast guarantee.
+ */
+export function deriveRoleColors(
+  solid: string, onSolid: string, background: string, mode: PaletteMode, muted = background,
+): RoleColors {
+  [solid, onSolid, background, muted].forEach(normalize);
+  // Preserve exact input spelling, including manual hex casing, in the key.
+  const key = JSON.stringify([solid, onSolid, background, mode, muted]);
+  const cached = roleColorsCache.get(key);
+  if (cached) return { ...cached };
+  const dark = mode === "dark";
+  const f = family(solid);
+  const against = (color: string, surfaces: string[], minimum: number) =>
+    surfaces.every((surface) => contrastRatio(color, surface) >= minimum);
+  const choose = (start: number, predicate: (color: string) => boolean) => {
+    for (let i = 0; i <= 1000; i++) {
+      const lightness = clamp(start + (dark ? 1 : -1) * i / 1000);
+      const color = tone(lightness, f);
+      if (predicate(color)) return color;
+      // All remaining clamped candidates would repeat this same pole.
+      if (lightness === (dark ? 1 : 0)) break;
+    }
+    // Manual surfaces/ink may need the opposite pole from the theme mode.
+    for (let i = 0; i <= 1000; i++) {
+      const color = tone(i / 1000, f);
+      if (predicate(color)) return color;
+    }
+    // A neutral candidate can satisfy a narrow interval missed by gamut mapping.
+    for (let i = 0; i <= 255; i++) {
+      const color = hex([i / 255, i / 255, i / 255]);
+      if (predicate(color)) return color;
+    }
+    return solid;
+  };
+  const surfaces = [background, muted];
+  const safeState = (color: string) =>
+    against(color, surfaces, 3) && contrastRatio(onSolid, color) >= 4.5;
+  const hover = choose(dark ? 0.78 : 0.48, safeState);
+  const active = choose(dark ? 0.85 : 0.41, safeState);
+  const subtle = mixColors(solid, background, dark ? 0.18 : 0.1);
+  const onSubtle = choose(dark ? 0.75 : 0.48, (color) => against(color, [subtle, background], 4.5));
+  const outline = choose(0.62, (color) => against(color, surfaces, 3));
+  const result = { solid, onSolid, hover, active, subtle, onSubtle, outline, focus: outline };
+  if (roleColorsCache.size >= roleColorsCacheLimit) {
+    const oldest = roleColorsCache.keys().next().value;
+    if (oldest !== undefined) roleColorsCache.delete(oldest);
+  }
+  roleColorsCache.set(key, result);
+  return { ...result };
+}
+
 function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Family>): GeneratedTheme {
   const dark = mode === "dark";
   const background = tone(dark ? 0.14 : 0.985, families.neutral);
@@ -113,12 +169,7 @@ function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Fami
     const onSolid = dark ? "#000000" : "#ffffff";
     const safeSolid = (color: string) => against(color, surfaces, 4.5) && contrastRatio(onSolid, color) >= 4.5;
     const solid = choose(f, dark ? 0.7 : 0.55, safeSolid);
-    const hover = choose(f, dark ? 0.78 : 0.48, safeSolid);
-    const active = choose(f, dark ? 0.85 : 0.41, safeSolid);
-    const subtle = mixColors(solid, background, dark ? 0.18 : 0.1);
-    const onSubtle = choose(f, dark ? 0.75 : 0.48, (color) => against(color, [subtle], 4.5));
-    const outline = choose(f, dark ? 0.62 : 0.62, (color) => against(color, surfaces, 3));
-    roles[role] = { solid, onSolid, hover, active, subtle, onSubtle, outline, focus: outline };
+    roles[role] = deriveRoleColors(solid, onSolid, background, mode, muted);
   }
   const foreground = choose(families.neutral, dark ? 0.92 : 0.22, (c) => against(c, surfaces, 4.5));
   const mutedForeground = choose(families.neutral, dark ? 0.7 : 0.55, (c) => against(c, surfaces, 4.5));
