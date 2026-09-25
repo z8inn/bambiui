@@ -94,13 +94,18 @@ At the stage 2 checkpoint, palette application was not a multi-theme switch and 
 
 **Transition decision:** stage 4 implementation and automated checks are complete; stage 5 integration quality gate remains. Manual accessibility acceptance must be completed before claiming the full accessibility promise.
 
-## 5. Integration quality gate — planned
+## 5. Integration quality gate — automated checks implemented; manual accessibility acceptance open
 
-- End-to-end color generation, manual contrast warning, view/theme/language flows.
-- Representative visual regression coverage.
-- Preview, developer output and CSS/JSON export consistency; schema compatibility if theme data changes.
-- Documentation aligned with implemented behavior.
-- Gate: two languages × two preview themes × two views, build/lint/tests and no unresolved critical functional or accessibility findings.
+- One browser integration flow now checks generating a palette for a non-editing theme without changing the other, manually creating a failing Button foreground/background pair, and checking the report, computed preview, Develop aliases, both CSS blocks and JSON across **English/Turkish × light/dark × Design/Develop**. Values and overrides stay unchanged across all eight combinations.
+- The exported v3 JSON backup is re-imported through the real file input after a deliberate edit; both themes and per-theme generator sources are restored. Schema remains v3; unit tests still cover v1/v2 migration.
+- `scripts/studio-visual-baseline.json` is a checked-in **structural** baseline for 16 canonical states (eight combinations × 1440px/375px): representative region geometry (±2px), computed editor colors and preview theme tokens. Ordinary smoke runs compare against it and reject overflow. `--record-visual` deliberately refreshes it for review after intentional UI changes; `--screenshots` saves representative screenshots for visual inspection. This is **not** pixel/image-diff coverage, nor a substitute for a human design review. Desktop Turkish/dark and mobile Turkish/dark Design/Develop captures were inspected at this checkpoint.
+- Documentation and the accessibility checklist describe implemented behavior and remaining manual work. No auth, server persistence or schema changes were introduced.
+
+### Validation and gate decision
+
+- `npm run build` (TypeScript/static export), `npm run lint`, `node --experimental-strip-types --test app/studio/*.test.mjs` (97 passed), and `git diff --check` passed.
+- `node scripts/studio-smoke.mjs` and `node scripts/studio-smoke.mjs --screenshots`: 54 Chromium checks passed each, including the matrix, import round-trip and structural baseline; no browser console/resource errors.
+- **Full gate not closed:** manual VoiceOver/Safari/Chrome, native 200% zoom, forced-colors and mobile increased-text-size checks remain open in `docs/accessibility-checklist.md`. Automated AX-tree, simulated reflow, baseline geometry and screenshot inspection cannot establish WCAG conformance or rule out every critical accessibility finding. Record these manual results before claiming the accessibility promise or full stage-5 acceptance.
 
 ## Stage review format
 

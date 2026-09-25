@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Run: npm run build && node scripts/studio-smoke.mjs (Node 22+).
 // Optional: CHROME_PATH points to a different installed Chrome executable.
-// --screenshots saves stage3 light/dark/editor/comparison captures in .next/color-review.
+// --screenshots saves representative captures in .next/color-review.
+// --record-visual intentionally replaces the structural visual baseline after review.
 // Uses the existing out/ build; no rebuild, app mutation or dependencies required.
 // CDP accessibility-tree assertions are not a screen-reader session. CSS zoom is
 // explicitly a reflow simulation, not native browser zoom. Contrast samples use
@@ -16,6 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../out/', import.meta.url));
+const visualBaselinePath = fileURLToPath(new URL('./studio-visual-baseline.json', import.meta.url));
+const recordVisual = process.argv.includes('--record-visual');
 const screenshots = process.argv.includes('--screenshots');
 const captureDir = fileURLToPath(new URL('../.next/color-review/', import.meta.url));
 const captures = [];
@@ -150,6 +153,67 @@ async function capture(name) {
   captures.push(path);
   console.log(`SCREENSHOT ${path}`);
 }
+async function visualSnapshot(locale, mode, view, width) {
+  await evaluate(`(() => {window.scrollTo(0,0);for(const s of ['.studio-sidebar','.studio-main','.token-editor']) {const e=document.querySelector(s);if(e)e.scrollTop=0;}})()`);
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  return evaluate(`(() => {
+    const selectors=['.studio-header','.studio-sidebar','.studio-main','.token-editor','.workspace-heading','.preview-toolbar','.workspace-panel:not([hidden])',${JSON.stringify(view)}==='design'?'.theme-pane[data-active] [data-ds-theme]':'.workspace-panel:not([hidden]) > div'];
+    const regions={};
+    for(const selector of selectors) {
+      const e=document.querySelector(selector);if(!e)throw Error('Visual region missing: '+selector);
+      const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+      regions[selector]={x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),background:s.backgroundColor,color:s.color};
+    }
+    const theme=document.querySelector('[data-ds-theme=${mode}]');
+    if(!theme)throw Error('Theme root missing: ${mode}');
+    const tokens=Object.fromEntries(['--ds-background','--ds-foreground','--ds-primary','--ds-on-primary'].map(key=>[key,theme.style.getPropertyValue(key).trim()]));
+    return {locale:${JSON.stringify(locale)},mode:${JSON.stringify(mode)},view:${JSON.stringify(view)},width:${width},tokens,regions};
+  })()`);
+}
+function compareSnapshot(actual, expected, label) {
+  for(const key of ['locale','mode','view','width']) assert.equal(actual[key],expected[key],`${label}/${key}`);
+  assert.deepEqual(actual.tokens,expected.tokens,`${label}: preview theme colors`);
+  assert.deepEqual(Object.keys(actual.regions),Object.keys(expected.regions),`${label}: missing visual regions`);
+  for(const [selector, region] of Object.entries(expected.regions)) {
+    for(const [key, value] of Object.entries(region)) {
+      const observed=actual.regions[selector][key];
+      if(typeof value==='number') assert.ok(Math.abs(observed-value)<=2,`${label}/${selector}/${key}: ${observed} vs baseline ${value}`);
+      else assert.equal(observed,value,`${label}/${selector}/${key}`);
+    }
+  }
+}
+async function stage5Visual() {
+  await setLocale('en');
+  await evaluate(`localStorage.removeItem('bambiui.design-system.v1')`);
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  await reloadHydrated();
+  const observed={};
+  for(const width of [1440,375]) {
+    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+    for(const locale of ['en','tr']) {
+      await setLocale(locale);
+      for(const mode of ['light','dark']) {
+        await click(localeTheme(locale,mode));
+        for(const view of ['design','develop']) {
+          await choose(localeView(locale,view));
+          const label=`${width}/${locale}/${mode}/${view}`;
+          observed[label]=await visualSnapshot(locale,mode,view,width);
+          assert.ok(await evaluate(`document.documentElement.scrollWidth<=${width}`),`${label}: page overflow`);
+          if((locale==='en' && mode==='light') || (locale==='tr' && mode==='dark')) await capture(`stage5-${width}-${locale}-${mode}-${view}`);
+        }
+      }
+    }
+  }
+  if(recordVisual) {
+    await writeFile(visualBaselinePath,JSON.stringify({note:'Structural CDP layout/style baselines at 1440 and 375px; not pixel snapshots or a visual review.',snapshots:observed},null,2)+'\n');
+    console.log(`RECORDED ${visualBaselinePath} — manually review before accepting`);
+  } else {
+    const baseline=JSON.parse(await readFile(visualBaselinePath,'utf8'));
+    assert.deepEqual(Object.keys(observed).sort(),Object.keys(baseline.snapshots).sort(),'visual baseline scenarios');
+    for(const [label,snapshot] of Object.entries(observed)) compareSnapshot(snapshot,baseline.snapshots[label],label);
+  }
+  await send('Emulation.setEmulatedMedia',{features:[]});
+}
 async function stage2Type(selector, value) {
   await click(q(selector));
   await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 4, commands: ['selectAll'] });
@@ -165,6 +229,17 @@ const computed = selector => `(() => {const s=getComputedStyle(${q(selector)}); 
 const row = `([...document.querySelectorAll('[aria-label="Button token inheritance"] tbody tr')].find(e => e.querySelector('th')?.textContent === '--button-background')?.textContent || '')`;
 const themeControl = name => named('[aria-label="Design theme"] button', name);
 const appearance = name => named('[aria-label="Editor appearance"] button', name);
+const locales = {
+  en: { view: 'Workspace view', design: 'Design', develop: 'Develop', theme: 'Design theme', light: 'Light', dark: 'Dark', scope: 'Global tokens', report: 'Current contrast checks', name: 'Design system name', export: 'Export tokens', format: 'Export format', exported: 'Exported tokens', close: 'Close export dialog' },
+  tr: { view: 'Çalışma alanı görünümü', design: 'Tasarım', develop: 'Geliştirme', theme: 'Tasarım teması', light: 'Açık', dark: 'Koyu', scope: 'Genel tokenlar', report: 'Mevcut kontrast kontrolleri', name: 'Tasarım sistemi adı', export: 'Tokenları dışa aktar', format: 'Dışa aktarma biçimi', exported: 'Dışa aktarılan tokenlar', close: 'Dışa aktarma penceresini kapat' },
+};
+async function setLocale(locale) {
+  assert.ok(locales[locale]);
+  await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value=${JSON.stringify(locale)};e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(`document.documentElement.lang === ${JSON.stringify(locale)} && !!document.querySelector('[aria-label=${JSON.stringify(locales[locale].view)}]')`);
+}
+const localeView = (locale, view) => tab(locales[locale].view, locales[locale][view]);
+const localeTheme = (locale, mode) => named(`[aria-label="${locales[locale].theme}"] button`, locales[locale][mode]);
 const selectComponent = name => click(`[...document.querySelectorAll('nav[aria-label="Components"] button')].find(e=>e.textContent.trim().replace(', has custom tokens','')===${JSON.stringify(name)})`);
 async function pointer(expression, event = 'mouseMoved') {
   const point = await evaluate(`(() => {const e=${expression}; e.scrollIntoView({block:'center',behavior:'instant'}); const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
@@ -879,6 +954,92 @@ try {
     await evaluate(`(() => {const e=document.querySelector('.language-control select');e.value='en';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     await wait(`document.documentElement.lang === 'en'`);
   });
+  await check('stage5: generation, manual warning, preview and both exports remain consistent across the locale/theme/view matrix', async () => {
+    await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+    await setLocale('en');
+    await choose(outer('Design'));await choose(inner('Components'));
+    await selectComponent('Button');
+    await click(named('.editor-scope button','Global tokens'));
+    await click(themeControl('Light'));
+    await click(q('[aria-label="Generate Iris palette"]'));
+    const beforeApply=await stored();
+    await click(named('button','Apply dark colors'));
+    const afterApply=await stored();
+    assert.deepEqual(afterApply.themes.light,beforeApply.themes.light,'non-editing theme changed on Apply');
+    assert.equal(afterApply.themes.dark.source,'#7660d5');
+    assert.equal(await evaluate(`${q('[data-ds-theme="dark"]')}.style.getPropertyValue('--ds-primary').trim()`),afterApply.themes.dark.global.primary);
+    // Make only dark's primary button unreadable; the other theme must remain untouched.
+    await click(named('.editor-scope button','Component'));
+    const darkFill=afterApply.themes.dark.global.primary;
+    await stage2Type('#token-background',darkFill);
+    await stage2Type('#token-foreground',darkFill);
+    const customized=await stored();
+    assert.deepEqual(customized.themes.light,afterApply.themes.light);
+    assert.equal(customized.themes.dark.components.button.foreground,darkFill);
+    for(const locale of ['en','tr']) {
+      await setLocale(locale);
+      for(const mode of ['light','dark']) {
+        await click(localeTheme(locale,mode));
+        await choose(localeView(locale,'design'));
+        const previewName=locale==='en'?'Button preview':'Düğme önizlemesi';
+        const paint=await evaluate(computed(`[aria-label="${previewName}"] button[data-variant="primary"]`));
+        const expected=customized.themes[mode].components.button;
+        if(mode==='dark') {
+          assert.equal(paint.background,rgb(darkFill));assert.equal(paint.foreground,rgb(darkFill));
+          const warning=await evaluate(`${q('[data-contrast-check="button.foreground"]')}?.textContent`);
+          assert.ok(warning?.includes(locale==='en'?'Below target':'Hedefin altında'),`${locale}/${mode}: untranslated or missing warning: ${warning}`);
+        } else {
+          assert.notEqual(paint.background,paint.foreground,`${locale}/${mode}: warning leaked to light`);
+          assert.deepEqual(expected,afterApply.themes.light.components.button);
+        }
+        assert.ok(await evaluate(`document.documentElement.scrollWidth <= 1440`));
+        await choose(localeView(locale,'develop'));
+        const alias=await evaluate(`(() => {const e=[...document.querySelectorAll('.workspace-panel:not([hidden]) tbody tr')].find(e=>e.querySelector('th')?.textContent==='--button-foreground');return e?.textContent;})()`);
+        assert.ok(alias?.includes(mode==='dark'?darkFill:customized.themes.light.components.button.foreground ?? customized.themes.light.global.onPrimary),`${locale}/${mode}: Develop alias ${alias}`);
+        await click(q(`[aria-label="${locales[locale].export}"]`));
+        try {
+          await click(named(`[aria-label="${locales[locale].format}"] button`,'JSON'));
+          assert.deepEqual(JSON.parse(await evaluate(`${q(`[aria-label="${locales[locale].exported}"]`)}.textContent`)),customized);
+          await click(named(`[aria-label="${locales[locale].format}"] button`,'CSS'));
+          const css=await evaluate(`${q(`[aria-label="${locales[locale].exported}"]`)}.textContent`);
+          for(const themeMode of ['light','dark']) {
+            const block=css.split(`[data-ds-theme="${themeMode}"] {`)[1]?.split('}')[0];
+            assert.ok(block,`${locale}/${mode}: missing CSS ${themeMode}`);
+            for(const [name,value] of Object.entries(customized.themes[themeMode].global)) {
+              const kebab=name.replace(/[A-Z]/g,c=>'-'+c.toLowerCase());
+              assert.ok(block.includes(`--ds-${kebab}: ${value}${typeof value==='number'?'px':''};`),`${locale}/${mode}/${themeMode}: CSS ${name}`);
+            }
+            assert.ok(block.includes(`--button-foreground: ${themeMode==='dark'?darkFill:customized.themes.light.components.button.foreground ?? 'var(--ds-on-primary)'};`),`${locale}/${mode}/${themeMode}: CSS alias`);
+          }
+        } finally {
+          await click(q(`[aria-label="${locales[locale].close}"]`));
+          await wait(`!document.querySelector('.export-dialog')`);
+        }
+      }
+    }
+    assert.deepEqual(await stored(),customized,'language/view/theme inspection modified persisted system');
+  });
+  await check('stage5: exported JSON re-imports both themes and resets generator sources', async () => {
+    await setLocale('en');
+    await choose(outer('Design'));
+    await click(themeControl('Dark'));
+    await click(named('.editor-scope button','Global tokens'));
+    const backup=await stored();
+    await stage2Type('#token-radius','19');
+    assert.notDeepEqual(await stored(),backup);
+    // Browser File/DataTransfer is used to exercise the real file-input import handler.
+    await evaluate('window.__savedConfirm=window.confirm;window.confirm=()=>true');
+    const backupJSON=JSON.stringify(backup);
+    try {
+      await evaluate(`(() => {const e=document.querySelector('.header-actions input[type="file"]'),d=new DataTransfer();d.items.add(new File([${JSON.stringify(backupJSON)}],'backup.json',{type:'application/json'}));e.files=d.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await wait(`${q('#token-radius')}.value === ${JSON.stringify(String(backup.themes.dark.global.radius))}`);
+      assert.deepEqual(await stored(),backup);
+      assert.equal(await evaluate(`${q(sourceInput)}.value`),backup.themes.dark.source);
+      await click(themeControl('Light'));
+      assert.equal(await evaluate(`${q(sourceInput)}.value`),backup.themes.light.source);
+    } finally {await evaluate('window.confirm=window.__savedConfirm;delete window.__savedConfirm');}
+  });
+  await check('stage5: structural visual baseline, 2 locales × 2 themes × 2 views at desktop and mobile', stage5Visual);
   await check('no browser console/runtime/resource errors', async () => {
     await delay(250);
     assert.deepEqual(browserErrors, []);
