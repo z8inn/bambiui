@@ -10,7 +10,7 @@ The studio stores its schema-v3 system locally; v1/v2 migration copies historica
 
 ## Implemented capabilities
 
-- Six components with consistent APIs and interactive Design specimens. Mounted theme previews retain demo state when switching views or selecting the other theme.
+- Six components with consistent APIs and interactive Design specimens directly on the selected theme's dotted background, without extra specimen cards. Actual Card specimens retain their own tokens. Mounted theme previews retain demo state when switching views or selecting the other theme.
 - Inspector for 27 global tokens and optional per-component overrides. Contrast summary stays visible and failed checks are highlighted; details list modeled color pairs and warnings, including manual color failures. On narrow screens, jump links connect the workspace and inspector without adding tabs.
 - OKLCH generation of accessible light/dark usage colors from one source, preserving the source in JSON. A safe light brand source can remain the exact primary fill with dark ink; links use derived accessible text ink. The logo color is the fresh system's source. Generated defaults pass 127 modeled color pairs per theme; manual or legacy values may not.
 - Develop view with React examples, props/defaults, live aliases, derived values and full CSS. Code snippets are project examples, not a standalone component package.

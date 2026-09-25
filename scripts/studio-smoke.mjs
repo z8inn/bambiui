@@ -140,6 +140,13 @@ try {
     assert.equal(await evaluate(`${q('input[id$="-source"]')}.value`),'#e8673c');
     assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-primary').trim()`),'#e8673c');
     assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-on-primary').trim()`),'#291b15');
+    assert.equal(await evaluate(`${q('.preview-canvas')}.dataset.design`),'true');
+    assert.equal(await evaluate(`getComputedStyle(${q('.preview-canvas')}).backgroundColor`),'rgb(255, 248, 246)');
+    assert.equal(await evaluate(`${q('.preview-canvas')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-background').trim()`));
+    assert.equal(await evaluate(`getComputedStyle(${q('.canvas-label')}).color`),'rgb(32, 25, 22)');
+    assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).borderTopWidth`),'0px');
+    assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).backgroundColor`),'rgba(0, 0, 0, 0)');
+    assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Card preview"] article')}).borderTopWidth`),'1px');
     assert.equal(await evaluate(`document.querySelectorAll('[data-palette-builder] button').length`),5);
     assert.equal(await evaluate(`${q('[data-palette-builder]')}.open`),false);
     await capture('studio-desktop-light');
@@ -148,6 +155,8 @@ try {
     await click(named('[aria-label="Design theme"] button','Dark'));
     assert.ok(await evaluate(`${q('.editor-title')}.textContent.includes('Dark')`));
     assert.equal(await evaluate(`${q('.theme-pane:not([hidden])')}.getAttribute('aria-label')`),'Dark preview');
+    assert.equal(await evaluate(`${q('.preview-canvas')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="dark"]')}.style.getPropertyValue('--ds-background').trim()`));
+    assert.equal(await evaluate(`getComputedStyle(${q('.canvas-label')}).color`),'rgb(237, 226, 222)');
     await capture('studio-desktop-dark');
     await click(named('nav[aria-label="Components"] button','Button'));
     await fill('#token-background','#234567');
@@ -157,6 +166,7 @@ try {
     assert.deepEqual(after.themes.light,before.themes.light);
     assert.equal(after.themes.dark.components.button.background,'#123456');
     await click(named('[aria-label="Workspace view"] [role="tab"]','Develop'));
+    assert.equal(await evaluate(`${q('.preview-canvas')}.hasAttribute('data-design')`),false);
     assert.ok(await evaluate(`${q('.workspace-panel:not([hidden])')}.textContent.includes('#123456')`));
     assert.equal(await evaluate(`${q('.viewport-controls')}.getClientRects().length`),0);
     assert.ok(await evaluate(`${q('[aria-label="Design theme"]')}.getClientRects().length > 0`));
@@ -191,6 +201,13 @@ try {
     await fill('input[id$="-source"]','#gggggg');
     assert.deepEqual(await stored(),after);
     await fill('input[id$="-source"]','#287c60');
+  });
+  await check('editing the selected global background recolors the grid without touching the other theme',async()=>{
+    const before=await stored();
+    await fill('#token-background','#123456');
+    assert.equal(await evaluate(`getComputedStyle(${q('.preview-canvas')}).backgroundColor`),'rgb(18, 52, 86)');
+    assert.deepEqual((await stored()).themes.light,before.themes.light);
+    await fill('#token-background',before.themes.dark.global.background);
   });
   await check('contrast warnings follow manual edits and exported CSS/JSON keep both themes',async()=>{
     await click(named('.editor-scope button','Component'));

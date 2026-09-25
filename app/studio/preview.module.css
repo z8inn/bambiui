@@ -3,7 +3,7 @@
   max-width: 960px;
   min-width: 0;
   margin-inline: auto;
-  color: var(--studio-color-text);
+  color: var(--ds-foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.5;
@@ -25,16 +25,11 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 24px 28px;
 }
 
 .showcase {
   min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--studio-color-border);
-  border-radius: 12px;
-  background: var(--studio-color-surface);
-  box-shadow: 0 2px 4px var(--studio-color-shadow);
 }
 
 .showcaseHeader {
@@ -42,13 +37,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 17px 20px;
-  color: var(--studio-color-text);
+  padding: 12px 16px;
+  color: var(--ds-foreground);
 }
 
-.showcaseHeader h3 {
+.showcaseHeader h2 {
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .showcaseBadge {
@@ -61,16 +56,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 168px;
-  padding: 24px;
-  background: var(--ds-background);
+  min-height: 136px;
+  padding: 16px;
   color: var(--ds-foreground);
   overflow: auto;
 }
 
 .expanded {
   min-height: 300px;
-  padding-block: 42px;
+  padding-block: 36px;
 }
 
 .showcaseCaption {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Dialog } from "@base-ui/react/dialog";
 import { Tabs } from "@base-ui/react/tabs";
@@ -9,7 +9,7 @@ import { BrandMark, Icon } from "./icons";
 import { Preview } from "./preview";
 import { DeveloperView } from "./developer";
 import { ColorBuilder, ContrastReport } from "./color-builder";
-import type { PaletteMode } from "./color-engine";
+import { mixColors, type PaletteMode } from "./color-engine";
 import { copy as t } from "./studio-copy";
 import {
   componentIds,
@@ -208,6 +208,11 @@ export default function Studio() {
   }
 
   const theme = system.themes[activeTheme];
+  const previewColors = {
+    "--preview-background": theme.global.background,
+    "--preview-foreground": theme.global.foreground,
+    "--preview-grid-dot": mixColors(theme.global.foreground, theme.global.background, 0.18),
+  } as CSSProperties;
   const component = selection === "overview" ? "button" : selection;
   const isGlobal = scope === "global";
   const values = isGlobal ? theme.global : resolveComponent(theme, component);
@@ -534,7 +539,13 @@ export default function Studio() {
                 </SegmentedControl>
               </div>
           </div>
-          <div className="preview-canvas" id="workspace-content" tabIndex={-1}>
+          <div
+            className="preview-canvas"
+            id="workspace-content"
+            tabIndex={-1}
+            data-design={view === "design" || undefined}
+            style={view === "design" ? previewColors : undefined}
+          >
             {notice && (
               <div role="status" className="notice">
                 <span>{notice === "importError" ? `${t.importFailed}: ${t[importError]}` : t[notice]}</span>

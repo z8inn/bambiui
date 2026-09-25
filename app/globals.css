@@ -573,6 +573,15 @@ button:disabled {
   scrollbar-width: thin;
   scrollbar-color: var(--studio-color-border-strong) transparent;
 }
+.preview-canvas[data-design] {
+  background-color: var(--preview-background);
+  background-image: radial-gradient(var(--preview-grid-dot) 1px, transparent 1px);
+  background-size: 16px 16px;
+  color: var(--preview-foreground);
+}
+.preview-canvas[data-design] .canvas-label {
+  color: var(--preview-foreground);
+}
 .preview-frame {
   width: 100%;
   max-width: 1060px;
