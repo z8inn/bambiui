@@ -1,6 +1,10 @@
 .preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 960px;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   margin-inline: auto;
   color: var(--ds-foreground);
@@ -23,23 +27,35 @@
 
 
 .canvasControls {
+  position: absolute;
+  z-index: 2;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-background);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 10%);
 }
 
 .canvasControls button {
-  min-height: 36px;
-  min-width: 36px;
-  padding: 6px 10px;
-  border: 1px solid var(--ds-border);
+  min-height: 30px;
+  min-width: 30px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: var(--ds-background);
   color: var(--ds-foreground);
   font: inherit;
+  font-size: 11px;
   cursor: pointer;
+}
+
+.canvasControls button:hover:not(:disabled) {
+  border-color: var(--ds-border);
 }
 
 .canvasControls button:disabled {
@@ -49,6 +65,7 @@
 
 .canvasControls output {
   min-width: 5ch;
+  padding-inline: 3px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -60,12 +77,16 @@
 }
 
 .viewport {
+  position: relative;
   width: 100%;
   min-width: 0;
-  height: clamp(360px, 68dvh, 800px);
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  background-color: var(--ds-background);
+  background-image: radial-gradient(var(--preview-grid-dot) 1px, transparent 1px);
+  background-size: 16px 16px;
   cursor: grab;
 }
 
@@ -74,19 +95,21 @@
   user-select: none;
 }
 
-.canvasExtent {
-  position: relative;
-  margin-inline: auto;
-  overflow: clip;
-}
-
 .canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 960px;
   padding: 24px;
   transform-origin: top left;
+  will-change: transform;
 }
 
 .showcase {
+  cursor: grab;
+}
+
+.showcase :is(a, button, input, textarea, select, label) {
   cursor: auto;
 }
 
@@ -110,8 +133,34 @@
 }
 
 .showcaseHeader h2 {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.showcaseHeader a {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+}
+
+.showcaseHeader a:hover,
+.showcaseHeader a:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.showcaseHeader a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.showcase[data-selected] .showcaseHeader a {
+  background: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
+  text-decoration-color: currentColor;
 }
 
 .showcaseBadge {
@@ -236,57 +285,30 @@
 }
 
 
-.compact {
-  max-width: 390px;
-}
-
-.compact .grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.compact .canvasControls {
-  display: none;
-}
-
-.compact .viewport {
-  height: auto;
-  overflow: visible;
-  cursor: auto;
-}
-
-.compact .canvasExtent {
-  width: 100% !important;
-  height: auto !important;
-  overflow: visible;
-}
-
-.compact .canvas {
-  width: 100%;
-  padding: 8px 0;
-  transform: none !important;
-}
 
 @media (max-width: 760px) {
+  .preview {
+    height: auto;
+  }
+
   .canvasControls {
     display: none;
   }
 
   .viewport {
+    flex: none;
     height: auto;
     overflow: visible;
+    overscroll-behavior: auto;
     cursor: auto;
   }
 
-  .canvasExtent {
-    width: 100% !important;
-    height: auto !important;
-    overflow: visible;
-  }
-
   .canvas {
+    position: relative;
     width: 100%;
     padding: 8px 0;
     transform: none !important;
+    will-change: auto;
   }
 
   .grid {

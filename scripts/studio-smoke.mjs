@@ -19,24 +19,41 @@ const watchdog = setTimeout(() => { console.error('Smoke test exceeded 180 secon
 const ids = ['button', 'input', 'card', 'badge', 'switch', 'checkbox'];
 const href = (view, id = 'overview') => `${view === 'develop' ? '/develop' : ''}${id === 'overview' ? '' : `/${id}`}` || '/';
 const canvas = '[aria-label="Component canvas"]';
+const viewNav = '.studio-header nav.view-switch';
+const themeControl = '.studio-header [aria-label="Design theme"]';
+const camera = '[data-canvas]';
+
+const moved = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
+async function wheel(point, deltaX, deltaY, modifiers = 0) {
+  await send('Input.dispatchMouseEvent',{type:'mouseWheel',...point,deltaX,deltaY,modifiers});
+}
+async function canvasBackground() {
+  // Locate a real empty hit target; specimen inputs and controls must remain interactive.
+  return evaluate(`(()=>{const e=${q(canvas)},r=e.getBoundingClientRect();for(let y=r.top+12;y<Math.min(r.bottom,innerHeight)-12;y+=8)for(let x=r.left+12;x<Math.min(r.right,innerWidth)-12;x+=8){const t=document.elementFromPoint(x,y);if(t && e.contains(t) && !t.closest('[data-specimen],button,a,input,textarea,select,label'))return {x,y};}throw Error('No visible canvas background')})()`);
+}
+async function stableCamera() {
+  await delay(500);
+  return evaluate(cameraState);
+}
 async function route(view, id = 'overview') {
   const path = href(view, id);
   await wait(`location.pathname === ${JSON.stringify(path)} && ${q('.editor-fields')} && !${q('.editor-fields')}.disabled`);
   await wait(`${q('.workspace-panel--' + view)} && !${q('.workspace-panel--' + view)}.hidden`);
   assert.equal(await evaluate(`${q('.studio-sidebar a[aria-current="page"]')}.getAttribute('href')`), path);
-  assert.equal(await evaluate(`${q('[aria-label="Workspace view"] a[aria-current="page"]')}.textContent.trim()`), view === 'design' ? 'Design' : 'Develop');
+  assert.equal(await evaluate(`${q(viewNav + ' a[aria-current="page"]')}.textContent.trim()`), view === 'design' ? 'Design' : 'Develop');
+  assert.equal(await evaluate(`!!${q('.breadcrumbs')} || !!${q('.viewport-controls')}`), false);
   assert.equal(await evaluate(`${q('#token-editor')}.hidden`), view === 'develop');
-  assert.equal(await evaluate(`${q('.editor-scope button[data-state="on"]')}?.textContent.trim() || ${q('.editor-scope button[aria-pressed="true"]')}?.textContent.trim()`), id === 'overview' ? 'Global tokens' : 'Component');
+  await wait(`(${q('.editor-scope button[data-state="on"]')}?.textContent.trim() || ${q('.editor-scope button[aria-pressed="true"]')}?.textContent.trim()) === ${JSON.stringify(id === 'overview' ? 'Global tokens' : 'Component')}`);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-specimen]')].map(e=>e.dataset.specimen).sort()`), [...ids].sort());
 }
 async function navigate(view, id = 'overview') {
   const currentView = await evaluate(`location.pathname.startsWith('/develop') ? 'develop' : 'design'`);
-  if (currentView !== view) await click(named('[aria-label="Workspace view"] a',view === 'design' ? 'Design' : 'Develop'));
-  await click(q(`.studio-sidebar a[href="${href(view, id)}"], [aria-label="Workspace view"] a[href="${href(view, id)}"]`));
+  if (currentView !== view) await click(named(viewNav + ' a',view === 'design' ? 'Design' : 'Develop'));
+  await click(q(`.studio-sidebar a[href="${href(view, id)}"], ${viewNav} a[href="${href(view, id)}"]`));
   await route(view, id);
 }
 async function key(key, code = key) {
-  const windowsVirtualKeyCode = {ArrowDown:40, Enter:13, Tab:9, ' ':32}[key];
+  const windowsVirtualKeyCode = {ArrowDown:40,ArrowRight:39,Enter:13,Tab:9,' ':32}[key];
   await send('Input.dispatchKeyEvent', {type:'keyDown', key, code, windowsVirtualKeyCode, ...(key === 'Enter' ? {text:'\r'} : {})});
   await send('Input.dispatchKeyEvent', {type:'keyUp', key, code, windowsVirtualKeyCode});
 }
@@ -60,6 +77,7 @@ async function wait(expression) {
   throw new Error(`Timed out: ${expression}`);
 }
 const q = selector => `document.querySelector(${JSON.stringify(selector)})`;
+const cameraState = `(() => {const view=${q(canvas)},layer=${q(camera)},matrix=new DOMMatrixReadOnly(getComputedStyle(layer).transform);return {x:matrix.m41,y:matrix.m42,scale:matrix.a,scrollLeft:view.scrollLeft,scrollTop:view.scrollTop,scrollWidth:view.scrollWidth,clientWidth:view.clientWidth,scrollHeight:view.scrollHeight,clientHeight:view.clientHeight}})()`;
 const named = (selector, name) => `[...document.querySelectorAll(${JSON.stringify(selector)})].find(e => e.textContent.trim() === ${JSON.stringify(name)} && !e.closest('[hidden]'))`;
 async function click(expression) {
   assert.ok(await evaluate(`!!(${expression})`), `Missing control: ${expression}`);
@@ -157,7 +175,16 @@ try {
   await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/`});
   await wait(`${q('.editor-fields')} && !${q('.editor-fields')}.disabled`);
 
-  await check('English-only studio chrome and one visible design preview',async()=>{
+  await check('header navigation and theme, full-bleed Design canvas and one visible preview',async()=>{
+    assert.equal(await evaluate(`${q(viewNav)}.closest('header') === ${q('.studio-header')}`),true);
+    assert.equal(await evaluate(`${q(themeControl)}.closest('header') === ${q('.studio-header')}`),true);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll(${JSON.stringify(viewNav + ' a')})].map(e=>e.textContent.trim())`),['Design','Develop']);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll(${JSON.stringify(themeControl + ' button')})].map(e=>e.textContent.trim())`),['Light','Dark']);
+    assert.equal(await evaluate(`!!${q('.breadcrumbs')} || !!${q('.viewport-controls')} || !!${q('[aria-label="Preview width"]')}`),false);
+    assert.ok(await evaluate(`(()=>{const content=${q('#workspace-content')}.getBoundingClientRect(),area=${q('.workspace-panel--design')}.getBoundingClientRect(),viewport=${q(canvas)}.getBoundingClientRect();return Math.abs(area.left-content.left)<2 && Math.abs(area.right-content.right)<2 && Math.abs(area.top-content.top)<2 && Math.abs(area.bottom-content.bottom)<2 && viewport.width>=area.width-80 && viewport.height>=area.height-80})()`));
+    assert.ok(await evaluate(`(()=>{const area=${q('.workspace-panel--design')}.getBoundingClientRect(),zoom=${q('[aria-label="Canvas zoom"]')}.getBoundingClientRect(),position=getComputedStyle(${q('[aria-label="Canvas zoom"]')}).position;return ['absolute','fixed','sticky'].includes(position) && zoom.width<area.width/2 && zoom.left>=area.left && zoom.right<=area.right+2 && zoom.top>area.top+area.height/2 && zoom.bottom<=area.bottom+2})()`));
+    assert.ok(await evaluate(`!!${q(camera)} && getComputedStyle(${q(canvas)}).overflowX==='clip' && getComputedStyle(${q(canvas)}).overflowY==='clip' && ${q(canvas)}.scrollLeft===0 && ${q(canvas)}.scrollTop===0`),'desktop camera viewport must not be natively scrollable');
+    assert.ok(Number.isFinite((await evaluate(cameraState)).scale),'canvas camera must have a finite transform');
     assert.equal(await evaluate('document.documentElement.lang'),'en');
     assert.equal(await evaluate(`document.querySelector('.language-control,.editor-theme-control,.theme-toolbar') === null`),true);
     assert.equal(await evaluate(`[...document.querySelectorAll('.theme-pane')].filter(e=>e.getClientRects().length && !e.closest('[hidden]')).length`),1);
@@ -175,7 +202,7 @@ try {
     assert.equal(await evaluate(`${q('#workspace-content')}.dataset.design`),'true');
     assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),'#fff8f6');
     assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-background').trim()`));
-    assert.ok(await evaluate(`${q('.canvas-label')}.getClientRects().length>0`));
+    assert.equal(await evaluate(`${q('.canvas-label')}`),null);
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).borderTopWidth`),'0px');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).backgroundColor`),'rgba(0, 0, 0, 0)');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Card preview"] article')}).borderTopWidth`),'1px');
@@ -183,8 +210,8 @@ try {
     assert.equal(await evaluate(`${q('[data-palette-builder]')}.open`),false);
     await capture('studio-desktop-light');
   });
-  await check('toolbar theme controls preview, inspector and Develop without changing the other theme',async()=>{
-    await click(named('[aria-label="Design theme"] button','Dark'));
+  await check('header theme controls preview, inspector and Develop without changing the other theme',async()=>{
+    await click(named(themeControl + ' button','Dark'));
     assert.ok(await evaluate(`${q('.editor-title')}.textContent.includes('Dark')`));
     assert.equal(await evaluate(`${q('.theme-pane:not([hidden])')}.getAttribute('aria-label')`),'Dark preview');
     assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="dark"]')}.style.getPropertyValue('--ds-background').trim()`));
@@ -197,15 +224,15 @@ try {
     const after = await stored();
     assert.deepEqual(after.themes.light,before.themes.light);
     assert.equal(after.themes.dark.components.button.background,'#123456');
-    await click(named('[aria-label="Workspace view"] a','Develop'));
+    await click(named(viewNav + ' a','Develop'));
     assert.equal(await evaluate(`${q('#workspace-content')}.hasAttribute('data-design')`),false);
     assert.ok(await evaluate(`${q('.workspace-panel:not([hidden])')}.textContent.includes('#123456')`));
-    assert.equal(await evaluate(`${q('.viewport-controls')}.getClientRects().length`),0);
-    assert.ok(await evaluate(`${q('[aria-label="Design theme"]')}.getClientRects().length > 0`));
-    await click(named('[aria-label="Design theme"] button','Light'));
+    assert.equal(await evaluate(`!!${q('.breadcrumbs')} || !!${q('.viewport-controls')}`),false);
+    assert.ok(await evaluate(`${q(themeControl)}.getClientRects().length > 0`));
+    await click(named(themeControl + ' button','Light'));
     assert.ok(await evaluate(`${q('.workspace-panel:not([hidden])')}.textContent.includes('light theme')`));
-    await click(named('[aria-label="Design theme"] button','Dark'));
-    await click(named('[aria-label="Workspace view"] a','Design'));
+    await click(named(themeControl + ' button','Dark'));
+    await click(named(viewNav + ' a','Design'));
   });
   await check('one preset applies both themes atomically and preserves geometry and overrides',async()=>{
     await navigate('design','button');
@@ -219,7 +246,7 @@ try {
       assert.equal(after.themes[mode].global.radius,before.themes[mode].global.radius);
       assert.deepEqual(after.themes[mode].components,before.themes[mode].components);
       assert.notEqual(after.themes[mode].global.primary,before.themes[mode].global.primary);
-      await click(named('[aria-label="Design theme"] button',mode === 'light' ? 'Light' : 'Dark'));
+      await click(named(themeControl + ' button',mode === 'light' ? 'Light' : 'Dark'));
       assert.equal(await evaluate(`${q(`[data-ds-theme="${mode}"]`)}.style.getPropertyValue('--ds-primary').trim()`),after.themes[mode].global.primary);
     }
     assert.notEqual(after.themes.light.global.background,after.themes.dark.global.background);
@@ -264,9 +291,13 @@ try {
   });
   await check('same expanded demo tree survives theme, routes and history in the persistent layout',async()=>{
     await navigate('design','button');
-    await click(named('[aria-label="Design theme"] button','Light'));
+    await click(named(themeControl + ' button','Light'));
     await click(named('[data-specimen="button"] button','Get started'));
+    await navigate('design','input');
+    await delay(500);
     await fill('[data-specimen="input"] input[type="email"]','retained@example.com');
+    await route('design','input');
+    await navigate('design','button');
     await evaluate(`window.__specimens=[...document.querySelectorAll('[data-specimen]')];window.__pane=${q('.theme-pane')};window.__layout=${q('.studio-sidebar')};window.__origin=performance.timeOrigin`);
     const retained = async () => {
       assert.equal(await evaluate(`window.__origin===performance.timeOrigin && window.__layout===${q('.studio-sidebar')} && window.__pane===${q('.theme-pane')} && window.__specimens.every(e=>e.isConnected && e===document.querySelector('[data-specimen="'+e.dataset.specimen+'"]'))`),true);
@@ -277,7 +308,7 @@ try {
             assert.ok(await evaluate(`!!${q('[data-specimen="input"] input[readonly]')} && !!${q('[data-specimen="button"] [aria-busy="true"]')} && !!${q('[data-specimen="checkbox"] [aria-checked="mixed"]')}`));
       assert.equal(await evaluate(`${q('.theme-pane [data-ds-theme]')}.dataset.dsTheme`),'dark');
     };
-    await click(named('[aria-label="Design theme"] button','Dark'));
+    await click(named(themeControl + ' button','Dark'));
     await retained();
     await navigate('develop','button');
     await navigate('develop','input');
@@ -292,11 +323,33 @@ try {
     await retained();
     await navigate('design','button');
   });
-  await check('canvas target, fit, reset, zoom, pointer pan and keyboard scrolling',async()=>{
+  await check('route selection animates camera unless reduced motion is requested',async()=>{
+    try {
+      await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+      await navigate('design','button');
+      const start=await stableCamera();
+      await navigate('design','checkbox');
+      const first=await evaluate(cameraState);
+      const end=await stableCamera();
+      assert.ok(moved(start,end)>80,'component navigation should move the camera');
+      assert.ok(moved(first,end)>2,'camera should animate rather than jump to its final destination');
+      await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+      await navigate('design','button');
+      await wait(`${q('[data-specimen="button"]')}.getBoundingClientRect().bottom > ${q(canvas)}.getBoundingClientRect().top && ${q('[data-specimen="button"]')}.getBoundingClientRect().top < ${q(canvas)}.getBoundingClientRect().bottom`);
+      const immediate=await evaluate(cameraState);
+      const settled=await stableCamera();
+      assert.ok(moved(immediate,settled)<2,'reduced motion should position the camera without animation');
+    } finally {
+      await send('Emulation.setEmulatedMedia',{features:[]});
+    }
+  });
+  await check('camera controls, unbounded drag, wheel pan and pointer-anchored zoom',async()=>{
+    await navigate('design','button');
     await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
     await wait(`${q('[aria-label="Zoom level"]')}.textContent==='100%'`);
     await click(q('[aria-label="Zoom in"]'));
     assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'110%');
+    assert.ok(Math.abs((await evaluate(cameraState)).scale-1.1)<0.02);
     await click(q('[aria-label="Zoom out"]'));
     assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'100%');
     await navigate('design','checkbox');
@@ -304,23 +357,83 @@ try {
     await click(named('[aria-label="Canvas zoom"] button','Fit'));
     assert.ok(await evaluate(`parseInt(${q('[aria-label="Zoom level"]')}.textContent)<100`));
     await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
-    await evaluate(`${q(canvas)}.scrollTo(0,0);${q(canvas)}.focus()`);
+    const reset=await stableCamera();
+    assert.ok(Math.abs(reset.scale-1)<0.02);
+    await evaluate(`${q(canvas)}.focus({preventScroll:true})`);
     await key('ArrowDown');
-    await wait(`${q(canvas)}.scrollTop>0`);
-    await evaluate(`${q(canvas)}.scrollTo(0,0)`);
-    // Find visible empty canvas background, never use a specimen as the drag handle.
-    const point=await evaluate(`(()=>{const e=${q(canvas)},r=e.getBoundingClientRect();for(let y=r.top+10;y<Math.min(r.bottom,innerHeight)-10;y+=8)for(let x=r.left+10;x<r.right-20;x+=8){const t=document.elementFromPoint(x,y);if(t && e.contains(t) && !t.closest('[data-specimen]'))return {x,y};}throw Error('No visible canvas background')})()`);
+    await wait(`${cameraState}.y < ${reset.y}-10`);
+    const arrow=await evaluate(cameraState);
+    await key('ArrowRight');
+    await wait(`${cameraState}.x < ${arrow.x}-10`);
+    const point=await canvasBackground();
+    const before=await evaluate(cameraState);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
     await wait(`${q(canvas)}.dataset.dragging==='true'`);
-    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:point.x-60,y:point.y-80,button:'left',buttons:1});
-    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x-60,y:point.y-80,button:'left',clickCount:1});
-    await wait(`${q(canvas)}.scrollTop>0 && !${q(canvas)}.hasAttribute('data-dragging')`);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:point.x+130,y:point.y+110,button:'left',buttons:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:point.x+130,y:point.y+110,button:'left',clickCount:1});
+    const dragged=await evaluate(cameraState);
+    assert.ok(dragged.x>before.x+100 && dragged.y>before.y+80,'pointer drag must pan in both directions');
+    assert.ok(!await evaluate(`${q(canvas)}.hasAttribute('data-dragging')`));
+    // A finite scroll extent would clamp here. Drag much farther than the old 2400px padding.
+    for(let i=0;i<8;i++) {
+      const p=await canvasBackground();
+      await send('Input.dispatchMouseEvent',{type:'mousePressed',...p,button:'left',clickCount:1});
+      await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x+650,y:p.y+550,button:'left',buttons:1});
+      await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:p.x+650,y:p.y+550,button:'left',clickCount:1});
+    }
+    const far=await evaluate(cameraState);
+    assert.ok(far.x>dragged.x+4000 && far.y>dragged.y+3500,'camera should not clamp to a scroll extent');
+    assert.equal(far.scrollLeft,0);
+    assert.equal(far.scrollTop,0);
+    const wheelPoint=await canvasBackground();
+    await wheel(wheelPoint,0,95);
+    await wait(`${cameraState}.y < ${far.y}-50`);
+    const vertical=await evaluate(cameraState);
+    await wheel(wheelPoint,0,90,8);
+    await wait(`${cameraState}.x < ${vertical.x}-50`);
+    const horizontal=await evaluate(cameraState);
+    assert.ok(Math.abs(horizontal.scale-vertical.scale)<0.001,'Shift+wheel should pan, not zoom');
+    for(const modifier of [2,4]) {
+      const anchor=await canvasBackground();
+      const old=await evaluate(`(()=>{const r=${q(camera)}.getBoundingClientRect(),m=new DOMMatrixReadOnly(getComputedStyle(${q(camera)}).transform);return {scale:m.a,worldX:( ${anchor.x}-r.left)/m.a,worldY:(${anchor.y}-r.top)/m.a}})()`);
+      await wheel(anchor,0,-90,modifier);
+      await wait(`${cameraState}.scale > ${old.scale}+0.01`);
+      const next=await evaluate(`(()=>{const r=${q(camera)}.getBoundingClientRect(),m=new DOMMatrixReadOnly(getComputedStyle(${q(camera)}).transform);return {scale:m.a,x:r.left+${old.worldX}*m.a,y:r.top+${old.worldY}*m.a}})()`);
+      assert.ok(Math.abs(next.x-anchor.x)<4 && Math.abs(next.y-anchor.y)<4,'modified wheel zoom must preserve pointer anchor');
+    }
+    assert.equal(await evaluate(`(()=>{const e=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-80});${q(canvas)}.dispatchEvent(e);return e.defaultPrevented})()`),true,'desktop Ctrl+wheel over canvas should be consumed for canvas zoom');
+    assert.equal(await evaluate(`(()=>{const e=new WheelEvent('wheel',{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-80});${q('.studio-sidebar')}.dispatchEvent(e);return e.defaultPrevented})()`),false,'modified wheel outside canvas must remain available to browser zoom');
+    assert.equal(await evaluate(`${q(canvas)}.scrollLeft===0 && ${q(canvas)}.scrollTop===0`),true);
     await navigate('design','button');
     await evaluate(`(${named('[data-specimen="button"] button','All set')}).focus()`);
     assert.equal(await evaluate(`document.activeElement===(${named('[data-specimen="button"] button','All set')})`),true);
     await key('Enter');
     await wait(`${q('[data-specimen="button"]')}.textContent.includes('successfully (2)')`);
+    await navigate('design','input');
+    await delay(500);
+    await click(q('[data-specimen="input"] input[type="email"]'));
+    await fill('[data-specimen="input"] input[type="email"]','camera-input@example.com');
+    assert.equal(await evaluate(`${q('[data-specimen="input"] input[type="email"]')}.value`),'camera-input@example.com');
+    assert.ok(!await evaluate(`${q(canvas)}.hasAttribute('data-dragging')`),'input activation must not start a camera drag');
+    await fill('[data-specimen="input"] input[type="email"]','retained@example.com');
     await capture('studio-canvas');
+  });
+  await check('Design has no breadcrumbs; canvas interactions select component tokens',async()=>{
+    await navigate('design');
+    assert.equal(await evaluate(`!!${q('.breadcrumbs')}`),false);
+    assert.equal(await evaluate(`${q('main h1')}.textContent.trim()`),'Your design system');
+    await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
+    await wait(`${q('[aria-label="Zoom level"]')}.textContent==='100%'`);
+    await click(named('[aria-label="Canvas zoom"] button','Fit'));
+    await delay(500);
+    await click(q('[data-specimen="card"] header a'));
+    await route('design','card');
+    assert.equal(await evaluate(`${q('[data-specimen="card"] header a')}.getAttribute('aria-current')`),'page');
+    await click(q('[data-specimen="input"] input[type="email"]'));
+    await route('design','input');
+    await evaluate(`history.back()`);
+    await route('design','card');
+    await navigate('design','button');
   });
   await check('Develop separates docs from canvas and inspector; copy and theme token references',async()=>{
     await navigate('develop','button');
@@ -333,7 +446,7 @@ try {
     await click(named('.workspace-panel--develop button','Copy React code'));
     await wait(`navigator.clipboard.readText().then(text=>text===${JSON.stringify(source)})`);
     for(const mode of ['light','dark']) {
-      await click(named('[aria-label="Design theme"] button',mode==='light'?'Light':'Dark'));
+      await click(named(themeControl + ' button',mode==='light'?'Light':'Dark'));
       assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes('${mode} theme')`));
       const data=await stored();
       assert.ok(await evaluate(`${q('.workspace-panel--develop table')}.textContent.length>0`));
@@ -345,14 +458,18 @@ try {
   await check('responsive layout, English accessible names and selectable preview themes',async()=>{
     await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:false});
     for(const view of ['Design','Develop']) {
-      await click(named('[aria-label="Workspace view"] a',view));
-      assert.ok(await evaluate('document.documentElement.scrollWidth <= 375'));
+      await click(named(viewNav + ' a',view));
+      await route(view.toLowerCase(),'button');
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'));
+      assert.ok(await evaluate(`${q(viewNav)}.getClientRects().length>0 && ${q(themeControl)}.getClientRects().length>0`));
+      assert.equal(await evaluate(`!!${q('.breadcrumbs')} || !!${q('.viewport-controls')}`),false);
       await capture(`studio-375-${view.toLowerCase()}`);
     }
-    await click(named('[aria-label="Workspace view"] a','Design'));
+    await click(named(viewNav + ' a','Design'));
     for(const view of ['design','develop']) for(const id of ids) {
       await navigate(view,id);
       assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'),`mobile overflow: ${view}/${id}`);
+      assert.ok(await evaluate(`${q(viewNav)}.getBoundingClientRect().right <= innerWidth && ${q(themeControl)}.getBoundingClientRect().right <= innerWidth`),`header controls overflow: ${view}/${id}`);
       if(view === 'design') assert.ok(await evaluate(`${q(`[data-specimen="${id}"]`)}.getClientRects().length>0`));
     }
     await navigate('design','button');
@@ -364,7 +481,7 @@ try {
     await click(q('.mobile-preview-link'));
     assert.equal(await evaluate('document.activeElement.id'),'workspace-content');
     for(const mode of ['light','dark']) {
-      await click(named('[aria-label="Design theme"] button',mode === 'light' ? 'Light' : 'Dark'));
+      await click(named(themeControl + ' button',mode === 'light' ? 'Light' : 'Dark'));
       assert.ok(await evaluate(`!!${q(`.theme-pane:not([hidden]) [data-ds-theme="${mode}"]`)}`));
       assert.equal(await evaluate(`[...document.querySelectorAll('.theme-pane')].filter(e=>e.getClientRects().length).length`),1);
     }
@@ -373,10 +490,28 @@ try {
     const {nodes}=await send('Accessibility.getFullAXTree');
     for(const name of ['Design theme','Light','Dark','Source brand color'])assert.ok(nodes.some(node=>!node.ignored && node.name?.value===name),`AX name: ${name}`);
   });
+  await check('mobile document scroll and touch gestures remain native',async()=>{
+    await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:true});
+    await send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
+    try {
+      await navigate('design');
+      await navigate('design','button');
+      assert.ok(await evaluate(`!document.querySelector('meta[name="viewport"]')?.content.includes('user-scalable=no')`),'mobile viewport must permit browser zoom');
+      assert.ok(await evaluate(`getComputedStyle(${q(canvas)}).touchAction!=='none'`),'canvas must not disable native touch zoom/scroll');
+      await evaluate('window.scrollTo(0,0)');
+      assert.ok(await evaluate('document.documentElement.scrollHeight>innerHeight'),'mobile document should have scrollable content');
+      await evaluate('window.scrollTo(0,180)');
+      await wait('window.scrollY>0');
+      assert.equal(await evaluate(`(()=>{const e=new Event('touchmove',{bubbles:true,cancelable:true});${q(canvas)}.dispatchEvent(e);return e.defaultPrevented})()`),false,'mobile touchmove must not be consumed by the camera');
+    } finally {
+      await send('Emulation.setTouchEmulationEnabled',{enabled:false});
+      await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:false});
+    }
+  });
   await check('JSON re-import restores both sources without adding language or editor theme',async()=>{
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
     const backup=await stored();
-    await click(named('[aria-label="Design theme"] button','Light'));
+    await click(named(themeControl + ' button','Light'));
     await click(named('.editor-scope button','Global tokens'));
     await fill('#token-radius','19');
     assert.notDeepEqual(await stored(),backup);

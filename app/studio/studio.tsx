@@ -177,8 +177,6 @@ export default function Studio() {
     setScopeState({ pathname, scope });
   }
   const [query, setQuery] = useState("");
-  const [compact, setCompact] = useState(false);
-
   const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
 
   const [status, setStatus] = useState<"loading" | "saved" | "draft" | "unsaved">("loading");
@@ -310,6 +308,21 @@ export default function Studio() {
               update({ ...system, name: event.target.value })
             }
           />
+        </div>
+        <div className="header-workspace-controls">
+          <nav className="view-switch" aria-label={t.workspaceView}>
+            <Link href={workspaceHref("design", selection)} aria-current={view === "design" ? "page" : undefined} data-active={view === "design" || undefined}>
+              <Icon name="grid" size={14} />{t.design}
+            </Link>
+            <Link href={workspaceHref("develop", selection)} aria-current={view === "develop" ? "page" : undefined} data-active={view === "develop" || undefined}>
+              <Icon name="code" size={15} />{t.develop}
+            </Link>
+          </nav>
+          <SegmentedControl aria-label={t.theme} value={activeTheme} onValueChange={(next) => setActiveTheme(next as PaletteMode)}>
+            <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
+            <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
+          </SegmentedControl>
+          {view === "design" && <a className="mobile-editor-link" href="#token-editor">{t.jumpToTokens} <Icon name="arrow" size={12} /></a>}
         </div>
         <div className="header-actions">
           <span className="save-status">
@@ -503,51 +516,15 @@ export default function Studio() {
       </aside>
 
       <main className={`studio-main studio-main--${view}`} id="workspace" tabIndex={-1}>
-        <div className="workspace-heading">
-          <div className="breadcrumbs">
-            {t.workspace}<Icon name="chevron" size={11} />
-            <span>{selection === "overview" ? t.overview : t.componentNames[selection]}</span>
+        {view === "design" ? (
+          <h1 className="sr-only">{selection === "overview" ? t.overviewTitle : t.componentTitle(t.componentNames[selection])}</h1>
+        ) : (
+          <div className="workspace-heading">
+            <h1>{selection === "overview" ? "Token reference" : `${t.componentNames[selection]} documentation`}</h1>
+            <p>React usage, props and resolved theme tokens for your design system.</p>
           </div>
-          <div>
-            <h1>{view === "develop" ? (selection === "overview" ? "Token reference" : `${t.componentNames[selection]} documentation`) : selection === "overview" ? t.overviewTitle : t.componentTitle(t.componentNames[selection])}</h1>
-            <p>{view === "develop" ? "React usage, props and resolved theme tokens for your design system." : selection === "overview" ? t.overviewIntro : t.componentIntro}</p>
-            {view === "design" && <a className="mobile-editor-link" href="#token-editor">{t.jumpToTokens} <Icon name="arrow" size={12} /></a>}
-          </div>
-        </div>
+        )}
         <div className="workspace-tabs workspace-views">
-          <div className="preview-toolbar">
-              <nav className="view-switch" aria-label={t.workspaceView}>
-                <Link href={workspaceHref("design", selection)} aria-current={view === "design" ? "page" : undefined} data-active={view === "design" || undefined}>
-                  <Icon name="grid" size={14} />
-                  {t.design}
-                </Link>
-                <Link href={workspaceHref("develop", selection)} aria-current={view === "develop" ? "page" : undefined} data-active={view === "develop" || undefined}>
-                  <Icon name="code" size={15} />
-                  {t.develop}
-                </Link>
-              </nav>
-              <div className="preview-width-controls">
-                <div className="viewport-controls" hidden={view !== "design"}>
-                  <span className="viewport-label">{compact ? t.mobile : t.responsive}</span>
-                  <SegmentedControl
-                    aria-label={t.width}
-                    value={compact ? "mobile" : "desktop"}
-                    onValueChange={(next) => setCompact(next === "mobile")}
-                  >
-                    <SegmentedControl.Item value="desktop" aria-label={t.desktop}><Icon name="desktop" size={15} /></SegmentedControl.Item>
-                    <SegmentedControl.Item value="mobile" aria-label={t.mobile}><Icon name="mobile" size={15} /></SegmentedControl.Item>
-                  </SegmentedControl>
-                </div>
-                <SegmentedControl
-                  aria-label={t.theme}
-                  value={activeTheme}
-                  onValueChange={(next) => setActiveTheme(next as PaletteMode)}
-                >
-                  <SegmentedControl.Item value="light">{t.light}</SegmentedControl.Item>
-                  <SegmentedControl.Item value="dark">{t.dark}</SegmentedControl.Item>
-                </SegmentedControl>
-              </div>
-          </div>
           <div
             className={`workspace-content workspace-content--${view}`}
             id="workspace-content"
@@ -569,12 +546,8 @@ export default function Studio() {
               </div>
             )}
             <section hidden={view !== "design"} aria-label={t.design} className="workspace-panel workspace-panel--design preview-canvas">
-              <div className={`preview-frame ${compact ? "compact" : ""}`}>
-                <div className="canvas-label">
-                  <span>{selection === "overview" ? t.collection : t.explorer(t.componentNames[selection])}</span>
-                  <span>{selection === "overview" ? "01 — 06" : t.interactive}</span>
-                </div>
-                <Preview selected={selection} system={system} compact={compact} mode={activeTheme} active={view === "design"} />
+              <div className="preview-frame">
+                <Preview selected={selection} system={system} mode={activeTheme} active={view === "design"} />
               </div>
             </section>
             <section hidden={view !== "develop"} aria-label={t.develop} className="workspace-panel workspace-panel--develop">

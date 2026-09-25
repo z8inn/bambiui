@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -260,18 +262,30 @@ function Showcase({
   id,
   expanded,
   copy,
+  selected,
+  onSelect,
 }: {
   id: ComponentId;
   expanded: boolean;
-
   copy: PreviewCopy;
+  selected: boolean;
+  onSelect: (id: ComponentId) => void;
 }) {
   const { name } = copy.components[id];
 
   return (
-    <section className={styles.showcase} data-specimen={id} aria-label={copy.showcase.preview(name)}>
+    <section
+      className={styles.showcase}
+      data-specimen={id}
+      data-selected={selected || undefined}
+      aria-label={copy.showcase.preview(name)}
+      onClickCapture={() => onSelect(id)}
+      onKeyDownCapture={(event) => {
+        if (event.key !== "Tab" && !event.altKey && !event.metaKey && !event.ctrlKey) onSelect(id);
+      }}
+    >
       <header className={styles.showcaseHeader}>
-        <h2>{name}</h2>
+        <h2><Link href={`/${id}`} aria-current={selected ? "page" : undefined}>{name}</Link></h2>
       </header>
       <div className={`${styles.specimen} ${expanded ? styles.expanded : ""}`}>
         <Specimen id={id} expanded={expanded} copy={copy} />
@@ -281,11 +295,9 @@ function Showcase({
   );
 }
 
-function ThemePane({ theme, mode, compact, children, copy }: {
+function ThemePane({ theme, mode, children, copy }: {
   theme: ThemeTokens;
   mode: PaletteMode;
-
-  compact: boolean;
   children: ReactNode;
   copy: PreviewCopy;
 }) {
@@ -293,7 +305,7 @@ function ThemePane({ theme, mode, compact, children, copy }: {
   return (
     <section className="theme-pane" aria-label={copy.theme.preview(copy.modes[mode])}>
       <div
-        className={`${styles.preview} ${compact ? styles.compact : ""}`}
+        className={styles.preview}
         data-ds-theme={mode}
         style={{ ...variables, colorScheme: mode } as CSSProperties}
       >
@@ -303,58 +315,156 @@ function ThemePane({ theme, mode, compact, children, copy }: {
   );
 }
 
-export function Preview({ selected, system, compact, mode, active = true }: {
+export function Preview({ selected, system, mode, active = true }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
-  compact: boolean;
   mode: PaletteMode;
   active?: boolean;
 }) {
   const copy = previewCopy;
+  const router = useRouter();
   const helpId = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
+  const dragged = useRef(false);
+  const camera = useRef({ x: 0, y: 0, zoom: 1 });
+  const animation = useRef<number | null>(null);
+  const initialized = useRef(false);
   const [zoom, setZoom] = useState(1);
-  const [size, setSize] = useState({ width: 960, height: 1600 });
+  const selectSpecimen = (id: ComponentId) => {
+    if (active && selected !== id) router.push(`/${id}`, { scroll: false });
+  };
 
-  const naturalLayout = () => compact || window.matchMedia("(max-width: 760px)").matches;
+  const naturalLayout = () => window.matchMedia("(max-width: 760px)").matches;
+
+  const stopAnimation = useCallback(() => {
+    if (animation.current !== null) cancelAnimationFrame(animation.current);
+    animation.current = null;
+  }, []);
+
+  const setCamera = useCallback((next: { x: number; y: number; zoom: number }) => {
+    camera.current = next;
+    const view = viewport.current;
+    if (view) {
+      view.style.backgroundPosition = `${next.x}px ${next.y}px`;
+      view.style.backgroundSize = `${16 * next.zoom}px ${16 * next.zoom}px`;
+      view.dataset.cameraX = String(next.x);
+      view.dataset.cameraY = String(next.y);
+      view.dataset.cameraZoom = String(next.zoom);
+    }
+    if (canvas.current) canvas.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${next.zoom})`;
+    setZoom((previous) => previous === next.zoom ? previous : next.zoom);
+  }, []);
+
+  const moveCamera = useCallback((next: { x: number; y: number; zoom: number }, smooth = false) => {
+    stopAnimation();
+    if (!smooth || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setCamera(next);
+      return;
+    }
+    const start = camera.current;
+    const startTime = performance.now();
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startTime) / 360);
+      const eased = 1 - (1 - progress) ** 3;
+      setCamera({
+        x: start.x + (next.x - start.x) * eased,
+        y: start.y + (next.y - start.y) * eased,
+        zoom: start.zoom + (next.zoom - start.zoom) * eased,
+      });
+      animation.current = progress < 1 ? requestAnimationFrame(tick) : null;
+    };
+    animation.current = requestAnimationFrame(tick);
+  }, [setCamera, stopAnimation]);
+
+  const zoomAt = useCallback((next: number, x: number, y: number) => {
+    const current = camera.current;
+    const value = Math.min(3, Math.max(0.2, next));
+    if (value === current.zoom) return;
+    moveCamera({
+      x: x - (x - current.x) * value / current.zoom,
+      y: y - (y - current.y) * value / current.zoom,
+      zoom: value,
+    });
+  }, [moveCamera]);
+
+  function changeZoom(next: number) {
+    const view = viewport.current;
+    if (!view || naturalLayout()) return;
+    zoomAt(next, view.clientWidth / 2, view.clientHeight / 2);
+  }
+
+  function fit() {
+    const view = viewport.current;
+    const element = canvas.current;
+    if (!view || !element || naturalLayout()) return;
+    const value = Math.min((view.clientWidth - 48) / element.offsetWidth, (view.clientHeight - 48) / element.offsetHeight, 1);
+    moveCamera({
+      x: (view.clientWidth - element.offsetWidth * value) / 2,
+      y: (view.clientHeight - element.offsetHeight * value) / 2,
+      zoom: value,
+    }, true);
+  }
 
   useEffect(() => {
+    const view = viewport.current;
     const element = canvas.current;
-    if (!element) return;
+    if (!view || !element) return;
     const observer = new ResizeObserver(() => {
-      setSize({ width: element.offsetWidth, height: element.offsetHeight });
+      if (!initialized.current && !naturalLayout() && view.clientWidth) {
+        initialized.current = true;
+        setCamera({ x: (view.clientWidth - element.offsetWidth) / 2, y: 24, zoom: 1 });
+      }
     });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    observer.observe(view);
+    return () => { observer.disconnect(); stopAnimation(); };
+  }, [setCamera, stopAnimation]);
+
+  useEffect(() => {
+    const view = viewport.current;
+    if (!view || !active) return;
+    const wheel = (event: WheelEvent) => {
+      if (naturalLayout()) return;
+      event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.clientHeight : 1;
+      if (event.ctrlKey || event.metaKey) {
+        const bounds = view.getBoundingClientRect();
+        zoomAt(camera.current.zoom * Math.exp(-event.deltaY * unit * 0.002), event.clientX - bounds.left, event.clientY - bounds.top);
+      } else {
+        const current = camera.current;
+        moveCamera({ ...current,
+          x: current.x - (event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX) * unit,
+          y: current.y - (event.shiftKey ? 0 : event.deltaY) * unit,
+        });
+      }
+    };
+    view.addEventListener("wheel", wheel, { passive: false });
+    return () => view.removeEventListener("wheel", wheel);
+  }, [active, moveCamera, zoomAt]);
 
   useEffect(() => {
     if (!active) return;
     const frame = requestAnimationFrame(() => {
       const view = viewport.current;
-      const target = selected === "overview"
-        ? canvas.current
-        : canvas.current?.querySelector<HTMLElement>(`[data-specimen="${selected}"]`);
-      if (!view || !target || !view.clientWidth) return;
-      if (compact || window.matchMedia("(max-width: 760px)").matches) {
-        if (selected !== "overview") target.scrollIntoView({ block: "center", behavior: "instant" });
+      const element = canvas.current;
+      const target = selected === "overview" ? element : element?.querySelector<HTMLElement>(`[data-specimen="${selected}"]`);
+      if (!view || !element || !target || !view.clientWidth) return;
+      if (naturalLayout()) {
+        if (selected !== "overview") target.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
       } else if (selected === "overview") {
-        setZoom(Math.min(1, Math.max(0.25, Math.min(
-          (view.clientWidth - 32) / target.offsetWidth,
-          (view.clientHeight - 32) / target.offsetHeight,
-        ))));
-        view.scrollTo({ left: 0, top: 0, behavior: "instant" });
+        moveCamera({ x: (view.clientWidth - element.offsetWidth * camera.current.zoom) / 2, y: 24, zoom: camera.current.zoom }, initialized.current);
       } else {
         const bounds = target.getBoundingClientRect();
         const box = view.getBoundingClientRect();
-        view.scrollTo({
-          left: view.scrollLeft + bounds.left - box.left + bounds.width / 2 - view.clientWidth / 2,
-          top: view.scrollTop + bounds.top - box.top + bounds.height / 2 - view.clientHeight / 2,
-          behavior: "instant",
-        });
+        const current = camera.current;
+        moveCamera({
+          ...current,
+          x: current.x + view.clientWidth / 2 - (bounds.left - box.left + bounds.width / 2),
+          y: current.y + view.clientHeight / 2 - (bounds.top - box.top + bounds.height / 2),
+        }, initialized.current);
       }
+      initialized.current = true;
       if (selected !== "overview") {
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const highlight = { outline: "2px solid var(--ds-foreground)", outlineOffset: "4px" };
@@ -366,38 +476,18 @@ export function Preview({ selected, system, compact, mode, active = true }: {
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [selected, active, compact]);
-
-  function changeZoom(next: number) {
-    const view = viewport.current;
-    if (!view || naturalLayout()) return;
-    const value = Math.min(2, Math.max(0.25, next));
-    const x = (view.scrollLeft + view.clientWidth / 2) / zoom;
-    const y = (view.scrollTop + view.clientHeight / 2) / zoom;
-    setZoom(value);
-    requestAnimationFrame(() => view.scrollTo({
-      left: x * value - view.clientWidth / 2,
-      top: y * value - view.clientHeight / 2,
-      behavior: "instant",
-    }));
-  }
-
-  function fit() {
-    const view = viewport.current;
-    if (!view) return;
-    changeZoom(Math.min((view.clientWidth - 32) / size.width, (view.clientHeight - 32) / size.height, 1));
-  }
+  }, [selected, active, moveCamera]);
 
   return (
-    <ThemePane theme={system.themes[mode]} mode={mode} compact={compact} copy={copy}>
+    <ThemePane theme={system.themes[mode]} mode={mode} copy={copy}>
       <div className={styles.canvasControls} role="group" aria-label="Canvas zoom">
-        <button type="button" onClick={() => changeZoom(zoom - 0.1)} disabled={zoom <= 0.25} aria-label="Zoom out">−</button>
+        <button type="button" onClick={() => changeZoom(zoom - 0.1)} disabled={zoom <= 0.2} aria-label="Zoom out">−</button>
         <output aria-live="polite" aria-label="Zoom level">{Math.round(zoom * 100)}%</output>
-        <button type="button" onClick={() => changeZoom(zoom + 0.1)} disabled={zoom >= 2} aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => changeZoom(zoom + 0.1)} disabled={zoom >= 3} aria-label="Zoom in">+</button>
         <button type="button" onClick={fit}>Fit</button>
         <button type="button" onClick={() => changeZoom(1)}>Reset zoom</button>
       </div>
-      <p id={helpId} className={styles.srOnly}>Scroll to explore all six components. On desktop, drag empty background to pan, or focus the canvas and use arrow keys. Use the zoom buttons to fit or resize the canvas.</p>
+      <p id={helpId} className={styles.srOnly}>On desktop, drag empty space or use the mouse wheel to pan without bounds. Hold Control or Command while scrolling to zoom at the pointer; Shift and scroll pans horizontally. Focus the canvas and use arrow keys to pan, or use Fit and zoom buttons. On mobile, scroll the page normally. Select a component heading or interact with a specimen to edit its tokens.</p>
       <div
         ref={viewport}
         className={styles.viewport}
@@ -405,12 +495,35 @@ export function Preview({ selected, system, compact, mode, active = true }: {
         role="region"
         aria-label="Component canvas"
         aria-describedby={helpId}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget || naturalLayout()) return;
+          const offsets: Record<string, [number, number]> = {
+            ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60],
+          };
+          if (offsets[event.key]) {
+            event.preventDefault();
+            const [dx, dy] = offsets[event.key];
+            moveCamera({ ...camera.current, x: camera.current.x + dx, y: camera.current.y + dy });
+          } else if (event.key === "+" || event.key === "=") {
+            event.preventDefault(); changeZoom(camera.current.zoom + 0.1);
+          } else if (event.key === "-") {
+            event.preventDefault(); changeZoom(camera.current.zoom - 0.1);
+          }
+        }}
+        onClickCapture={(event) => {
+          if (dragged.current) {
+            event.stopPropagation();
+            dragged.current = false;
+          }
+        }}
         onPointerDown={(event) => {
-          if (naturalLayout() || event.button !== 0 || event.pointerType === "touch" || !(event.target instanceof Element)) return;
-          // Specimen content is never a drag handle, including labels and selectable text.
-          if (event.target.closest("[data-specimen]")) return;
+          dragged.current = false;
+          if (naturalLayout() || (event.button !== 0 && event.button !== 1) || event.pointerType === "touch" || !(event.target instanceof Element)) return;
+          // Middle drag pans anywhere; left drag leaves interactive specimens usable.
+          if (event.button === 0 && event.target.closest("a, button, input, textarea, select, label, [role='switch'], [role='checkbox'], [contenteditable='true']")) return;
+          stopAnimation();
           const view = event.currentTarget;
-          drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: view.scrollLeft, top: view.scrollTop };
+          drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: camera.current.x, top: camera.current.y };
           view.setPointerCapture(event.pointerId);
           view.dataset.dragging = "true";
           view.focus({ preventScroll: true });
@@ -419,8 +532,8 @@ export function Preview({ selected, system, compact, mode, active = true }: {
         onPointerMove={(event) => {
           const start = drag.current;
           if (!start || start.id !== event.pointerId) return;
-          event.currentTarget.scrollLeft = start.left - (event.clientX - start.x);
-          event.currentTarget.scrollTop = start.top - (event.clientY - start.y);
+          if (Math.abs(event.clientX - start.x) + Math.abs(event.clientY - start.y) > 5) dragged.current = true;
+          setCamera({ ...camera.current, x: start.left + event.clientX - start.x, y: start.top + event.clientY - start.y });
         }}
         onPointerUp={(event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -436,11 +549,9 @@ export function Preview({ selected, system, compact, mode, active = true }: {
           delete event.currentTarget.dataset.dragging;
         }}
       >
-        <div className={styles.canvasExtent} style={{ width: size.width * zoom, height: size.height * zoom }}>
-          <div ref={canvas} className={styles.canvas} style={{ transform: `scale(${zoom})` }}>
-            <div className={styles.grid}>
-              {componentIds.map((id) => <Showcase key={id} id={id} expanded copy={copy} />)}
-            </div>
+        <div ref={canvas} data-canvas className={styles.canvas}>
+          <div className={styles.grid}>
+            {componentIds.map((id) => <Showcase key={id} id={id} expanded copy={copy} selected={selected === id} onSelect={selectSpecimen} />)}
           </div>
         </div>
       </div>
