@@ -407,6 +407,48 @@
   --text-letter-spacing: var(--ds-typography-heading-letter-spacing);
 }
 
+.text[data-variant="h1"] {
+  --text-font-size: var(--ds-typography-h1-font-size);
+  --text-line-height: var(--ds-typography-h1-line-height);
+  --text-font-weight: var(--ds-typography-h1-font-weight);
+  --text-letter-spacing: var(--ds-typography-h1-letter-spacing);
+}
+
+.text[data-variant="h2"] {
+  --text-font-size: var(--ds-typography-h2-font-size);
+  --text-line-height: var(--ds-typography-h2-line-height);
+  --text-font-weight: var(--ds-typography-h2-font-weight);
+  --text-letter-spacing: var(--ds-typography-h2-letter-spacing);
+}
+
+.text[data-variant="h3"] {
+  --text-font-size: var(--ds-typography-h3-font-size);
+  --text-line-height: var(--ds-typography-h3-line-height);
+  --text-font-weight: var(--ds-typography-h3-font-weight);
+  --text-letter-spacing: var(--ds-typography-h3-letter-spacing);
+}
+
+.text[data-variant="h4"] {
+  --text-font-size: var(--ds-typography-h4-font-size);
+  --text-line-height: var(--ds-typography-h4-line-height);
+  --text-font-weight: var(--ds-typography-h4-font-weight);
+  --text-letter-spacing: var(--ds-typography-h4-letter-spacing);
+}
+
+.text[data-variant="h5"] {
+  --text-font-size: var(--ds-typography-h5-font-size);
+  --text-line-height: var(--ds-typography-h5-line-height);
+  --text-font-weight: var(--ds-typography-h5-font-weight);
+  --text-letter-spacing: var(--ds-typography-h5-letter-spacing);
+}
+
+.text[data-variant="h6"] {
+  --text-font-size: var(--ds-typography-h6-font-size);
+  --text-line-height: var(--ds-typography-h6-line-height);
+  --text-font-weight: var(--ds-typography-h6-font-weight);
+  --text-letter-spacing: var(--ds-typography-h6-letter-spacing);
+}
+
 .text[data-variant="label"] {
   --text-font-size: var(--ds-typography-label-font-size);
   --text-line-height: var(--ds-typography-label-line-height);

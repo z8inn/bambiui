@@ -176,8 +176,13 @@ export function Example() {
   return (
     <>
       {/* Variant sets appearance; as sets document semantics. */}
-      <Text as="h1" variant="heading" size="lg">Page title</Text>
-      <Text variant="heading" size="sm" as="h2">Section title</Text>
+      <Text variant="h1">Page title</Text>
+      <Text variant="h2">Section title</Text>
+      <Text variant="h3">Subsection title</Text>
+      <Text variant="h4">Detail title</Text>
+      <Text variant="h5">Small heading</Text>
+      <Text variant="h6">Compact heading</Text>
+      <Text variant="heading" as="span">Legacy heading style</Text>
       <Text>Paragraph text uses the default variant and size.</Text>
       <Text variant="paragraph" tone="info">An informative note.</Text>
       <Text variant="label" as="span">Visual label, not a form label</Text>

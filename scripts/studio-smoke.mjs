@@ -47,6 +47,8 @@ async function route(view, id = 'overview') {
   assert.equal(await evaluate(`!!${q('.editor-scope')}`),false);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-specimen]')].map(e=>e.dataset.specimen).sort()`), [...ids].sort());
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-foundation]')].map(e=>e.dataset.foundation).sort()`), ['colors', 'spacing', 'text']);
+  assert.equal(await evaluate(`document.querySelectorAll('[data-specimen="text"]').length`),1);
+  assert.equal(await evaluate(`${q('[data-specimen="text"]')}===${q('[data-foundation="text"]')}`),true);
 }
 async function navigate(view, id = 'overview') {
   const currentView = await evaluate(`location.pathname.startsWith('/develop') ? 'develop' : 'design'`);
@@ -319,6 +321,39 @@ try {
     await navigate('design','text');
     assert.equal(await evaluate(`getComputedStyle(${q('[data-specimen="text"] [data-variant="heading"][data-size="md"]')}).fontSize`),'42px');
   });
+  await check('H1–H6 typography controls independently update the single Text canvas unit and Develop',async()=>{
+    await navigate('design','text');
+    for(const [variant,size] of [['h1',54],['h2',45],['h3',36],['h4',30],['h5',25],['h6',22]]) {
+      const details=`.typography-variant:has(#typography-${variant}-fontSize)`;
+      if(!await evaluate(`${q(details)}.open`)) await click(q(`${details} summary`));
+      await fill(`#typography-${variant}-fontSize`,String(size));
+      assert.equal(await evaluate(`getComputedStyle(${q(`[data-specimen="text"] [data-variant="${variant}"]`)}).fontSize`),`${size}px`);
+      for(const mode of ['light','dark']) assert.equal((await stored()).themes[mode].typography[variant].fontSize,size);
+      assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-typography-${variant}-font-size').trim()`),`${size}px`);
+    }
+    assert.equal(await evaluate(`${q('[data-foundation="text"] h2 a')}.getAttribute('aria-current')`),'page');
+    assert.notEqual(await evaluate(`getComputedStyle(${q('[data-foundation="text"] h2 a')}).backgroundColor`),'rgba(0, 0, 0, 0)');
+    await capture('studio-text');
+    await navigate('develop','text');
+    for(const variant of ['h1','h2','h3','h4','h5','h6']) assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes('--ds-typography-${variant}-font-size')`));
+    await reload();
+    assert.equal((await stored()).themes.dark.typography.h1.fontSize,54);
+    await navigate('design','text');
+  });
+  await check('Text color applies to every canvas style, not only paragraph',async()=>{
+    await navigate('design','text');
+    const variants=['heading','h1','h2','h3','h4','h5','h6','paragraph','label','caption'];
+    await fill('#token-foreground','#123456');
+    for(const variant of variants) assert.equal(await evaluate(`getComputedStyle(${q(`[data-specimen="text"] [data-variant="${variant}"]`)}).color`),'rgb(18, 52, 86)',`${variant} should use the component color`);
+    await click(q('[aria-label="Reset foreground override"]'));
+    const original=(await stored()).themes.light.global.foreground;
+    await navigate('design','colors');
+    await fill('#token-foreground','#345678');
+    await navigate('design','text');
+    for(const variant of variants) assert.equal(await evaluate(`getComputedStyle(${q(`[data-specimen="text"] [data-variant="${variant}"]`)}).color`),'rgb(52, 86, 120)',`${variant} should inherit the global color`);
+    await navigate('design','colors');
+    await fill('#token-foreground',original);
+  });
   await check('shape, component sizing and typography edits stay shared across Light and Dark',async()=>{
     await navigate('design');
     await fill('#token-radius','17');
@@ -505,10 +540,12 @@ try {
     await delay(500);
     await click(q('[data-foundation="colors"] a[aria-label^="Edit success 500"]'));
     await route('design','colors');
+    assert.ok(await evaluate(`getComputedStyle(${q('[data-foundation="colors"] h2 a')}).backgroundColor!=='rgba(0, 0, 0, 0)'`));
     assert.equal(await evaluate(`${q('#color-scale-role')}.value`),'success');
     assert.ok(await evaluate(`!!${q('#scale-success-500')} && !!${q('#token-background')} && !${q('#token-radius')}`));
     await click(q('[data-foundation="spacing"] a[class*="spacingSample"]'));
     await route('design','spacing');
+    assert.ok(await evaluate(`getComputedStyle(${q('[data-foundation="spacing"] h2 a')}).backgroundColor!=='rgba(0, 0, 0, 0)'`));
     assert.ok(await evaluate(`!!${q('#token-radius')} && !${q('#token-background')} && !${q('#scale-primary-500')}`));
     await delay(450);
     await capture('studio-spacing');
@@ -654,6 +691,7 @@ try {
         assert.deepEqual(normalized.themes[mode].components,{...oldV3.themes[mode].components,text:{}});
         assert.deepEqual(normalized.themes[mode].colorScales,{});
         assert.equal(normalized.themes[mode].typography.heading.fontSize,32);
+        assert.deepEqual(['h1','h2','h3','h4','h5','h6'].map(variant=>normalized.themes[mode].typography[variant].fontSize),[48,40,32,28,24,20]);
       }
       await reload();
       assert.deepEqual(await stored(),normalized);

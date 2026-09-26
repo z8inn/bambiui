@@ -132,12 +132,24 @@
   letter-spacing: -0.02em;
 }
 
-.foundation h2 a {
+.foundation h2 a,
+.showcaseHeader a {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 6px;
   color: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
   text-underline-offset: 4px;
 }
 
-.foundation[data-selected] h2 a {
+.foundation h2 a:hover,
+.foundation h2 a:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.foundation[data-selected] h2 a,
+.showcase[data-selected] .showcaseHeader a {
   background: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
   text-decoration-color: currentColor;
 }
@@ -229,17 +241,11 @@
   gap: 16px;
 }
 
-.foundationText > div > span {
+.foundationTextLabel {
   color: var(--ds-muted-foreground);
   text-transform: capitalize;
 }
 
-.textSamples {
-  display: grid;
-  justify-items: start;
-  gap: 16px;
-  width: 100%;
-}
 
 .grid {
   display: grid;
@@ -266,29 +272,15 @@
   letter-spacing: -0.02em;
 }
 
-.showcaseHeader a {
-  display: inline-block;
-  padding: 5px 8px;
-  border-radius: 6px;
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 4px;
-}
-
 .showcaseHeader a:hover,
 .showcaseHeader a:focus-visible {
   text-decoration-color: currentColor;
 }
 
-.showcaseHeader a:focus-visible {
+.showcaseHeader a:focus-visible,
+.foundation h2 a:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
-}
-
-.showcase[data-selected] .showcaseHeader a {
-  background: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
-  text-decoration-color: currentColor;
 }
 
 .showcaseBadge {

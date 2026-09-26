@@ -81,7 +81,7 @@ export type ComponentTokens = Pick<
 
 export type ColorScaleOverrides = Partial<Record<ColorScaleRole, Partial<Record<ColorScaleStop, string>>>>;
 
-export const typographyVariants = ["heading", "paragraph", "label", "caption"] as const;
+export const typographyVariants = ["heading", "h1", "h2", "h3", "h4", "h5", "h6", "paragraph", "label", "caption"] as const;
 export type TypographyVariant = (typeof typographyVariants)[number];
 export type TypographyTokens = {
   fontSize: number;
@@ -98,6 +98,12 @@ export const typographyFields = [
 
 export const defaultTypography: Record<TypographyVariant, TypographyTokens> = {
   heading: { fontSize: 32, lineHeight: 1.2, fontWeight: 700, letterSpacing: -0.5 },
+  h1: { fontSize: 48, lineHeight: 1.1, fontWeight: 700, letterSpacing: -1 },
+  h2: { fontSize: 40, lineHeight: 1.15, fontWeight: 700, letterSpacing: -0.75 },
+  h3: { fontSize: 32, lineHeight: 1.2, fontWeight: 700, letterSpacing: -0.5 },
+  h4: { fontSize: 28, lineHeight: 1.25, fontWeight: 600, letterSpacing: -0.35 },
+  h5: { fontSize: 24, lineHeight: 1.3, fontWeight: 600, letterSpacing: -0.25 },
+  h6: { fontSize: 20, lineHeight: 1.35, fontWeight: 600, letterSpacing: 0 },
   paragraph: { fontSize: 16, lineHeight: 1.5, fontWeight: 400, letterSpacing: 0 },
   label: { fontSize: 14, lineHeight: 1.4, fontWeight: 500, letterSpacing: 0 },
   caption: { fontSize: 12, lineHeight: 1.4, fontWeight: 400, letterSpacing: 0 },

@@ -61,7 +61,9 @@ function DemoButton({
   );
 }
 
-function Specimen({ id, expanded, copy }: { id: ComponentId; expanded: boolean; copy: PreviewCopy }) {
+type ShowcaseId = Exclude<ComponentId, "text">;
+
+function Specimen({ id, expanded, copy }: { id: ShowcaseId; expanded: boolean; copy: PreviewCopy }) {
   switch (id) {
     case "button":
       if (!expanded)
@@ -243,20 +245,7 @@ function Specimen({ id, expanded, copy }: { id: ComponentId; expanded: boolean; 
           )}
         </div>
       );
-    case "text":
-      return (
-        <div className={styles.textSamples}>
-          <Text variant="heading" as="h3">Design that speaks clearly</Text>
-          <Text variant="paragraph">A paragraph gives an idea room to breathe, with a rhythm that feels natural.</Text>
-          <Text variant="label">Form label</Text>
-          <Text variant="caption">A quiet note for supporting details.</Text>
-          <div className={styles.states}>
-            <Text variant="heading" size="sm">Small</Text>
-            <Text variant="heading" size="lg">Large</Text>
-            <Text variant="label" tone="primary">Primary</Text>
-          </div>
-        </div>
-      );
+
     case "checkbox":
       return (
         <div className={styles.toggleStates}>
@@ -286,7 +275,7 @@ function Showcase({
   selected,
   onSelect,
 }: {
-  id: ComponentId;
+  id: ShowcaseId;
   expanded: boolean;
   copy: PreviewCopy;
   selected: boolean;
@@ -604,20 +593,23 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
                 </Link>)}
               </div>
             </section>
-            <section data-foundation="text" data-canvas-unit="text-foundation" aria-labelledby="canvas-text-title" className={styles.foundation}
-                          onClickCapture={(event) => { if (!(event.target instanceof Element) || !event.target.closest("a")) selectSpecimen("text"); }}>
-              <h2 id="canvas-text-title"><Link href="/text" aria-current={selected === "text" ? "page" : undefined}>Text styles</Link></h2>
-              <p>Theme typography tokens power the Text component.</p>
+            <section data-foundation="text" data-specimen="text" data-canvas-unit="text" data-selected={selected === "text" || undefined} aria-label="Text preview" className={styles.foundation}
+              onClickCapture={() => selectSpecimen("text")}
+              onKeyDownCapture={(event) => { if (event.key !== "Tab" && !event.altKey && !event.metaKey && !event.ctrlKey) selectSpecimen("text"); }}>
+              <h2><Link href="/text" aria-current={selected === "text" ? "page" : undefined}>Text</Link></h2>
+              <p>Independent H1–H6, paragraph, label, caption and legacy heading styles.</p>
               <div className={styles.foundationText}>
                 {typographyVariants.map((variant) => <div key={variant}>
-                  <span>{variant}</span>
-                  <Text variant={variant} as={variant === "heading" ? "h3" : "p"}>{variant === "heading" ? "Words worth noticing" : variant === "paragraph" ? "A clear paragraph makes every idea easier to follow." : variant === "label" ? "A helpful label" : "The finer details, thoughtfully placed."}</Text>
+                  <span className={styles.foundationTextLabel}>{variant === "heading" ? "Legacy heading" : variant.toUpperCase()}</span>
+                  <Text variant={variant} as={variant === "paragraph" ? "p" : "span"}>
+                    {variant === "heading" ? "A familiar heading style" : variant === "paragraph" ? "A clear paragraph gives each idea room to breathe." : variant === "label" ? "A helpful label" : variant === "caption" ? "The finer details, thoughtfully placed." : `A ${variant.toUpperCase()} that sets the tone`}
+                  </Text>
                 </div>)}
               </div>
             </section>
           </div>
           <div className={styles.grid}>
-            {componentIds.map((id) => <Showcase key={id} id={id} expanded copy={copy} selected={selected === id} onSelect={selectSpecimen} />)}
+            {componentIds.filter((id): id is ShowcaseId => id !== "text").map((id) => <Showcase key={id} id={id} expanded copy={copy} selected={selected === id} onSelect={selectSpecimen} />)}
           </div>
         </div>
       </div>

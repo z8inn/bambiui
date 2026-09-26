@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
 import {
   componentIds, componentTokenKeys, defaultSystem, exportCSS, isComponentKey,
   parseDesignSystem, resolveColorScale, resolveComponent, resolveTypography, shareNonColorTokens, STORAGE_KEY, systemConstants,
@@ -379,14 +382,100 @@ test("scale stops follow live global colors and keep manual overrides across pal
   assert.match(exportCSS({ themes: { light: applied, dark: fresh().themes.dark } }), /--ds-primary-50: #AbCdEf;/);
 });
 
+test("legacy typography records gain independent H1–H6 defaults without losing existing values", () => {
+  const headings = ["h1", "h2", "h3", "h4", "h5", "h6"];
+  assert.deepEqual(typographyVariants, ["heading", ...headings, "paragraph", "label", "caption"]);
+  assert.deepEqual(headings.map((variant) => defaultTypography[variant].fontSize), [48, 40, 32, 28, 24, 20]);
+  for (const variant of headings) {
+    assert.ok(defaultTypography[variant].fontSize >= 8 && defaultTypography[variant].fontSize <= 96);
+  }
+  const system = fresh();
+  for (const mode of modes) {
+    system.themes[mode].typography = {
+      heading: { fontSize: 53, fontWeight: 800 },
+      paragraph: { fontSize: 18 },
+      label: { letterSpacing: 1 },
+      caption: { lineHeight: 1.8 },
+    };
+  }
+  const parsed = parse(system);
+  for (const mode of modes) {
+    const theme = parsed.themes[mode];
+    assert.deepEqual(theme.typography.heading, { ...defaultTypography.heading, fontSize: 53, fontWeight: 800 });
+    assert.equal(theme.typography.paragraph.fontSize, 18);
+    assert.equal(theme.typography.label.letterSpacing, 1);
+    assert.equal(theme.typography.caption.lineHeight, 1.8);
+    for (const variant of headings) assert.deepEqual(theme.typography[variant], defaultTypography[variant]);
+  }
+  assert.deepEqual(parse(parsed), parsed);
+  parsed.themes.light.typography.h1.fontSize = 90;
+  assert.equal(parsed.themes.dark.typography.h1.fontSize, 48);
+});
+
+test("H1–H6 export independent CSS variables and share edited values across themes", () => {
+  const system = fresh();
+  const headings = typographyVariants.filter((variant) => /^h[1-6]$/.test(variant));
+  for (const [index, variant] of headings.entries()) {
+    system.themes.dark.typography[variant] = { fontSize: 80 - index, fontWeight: 500 + index * 10 };
+  }
+  const shared = shareNonColorTokens(system, "dark");
+  const parsed = parse(shared);
+  for (const mode of modes) {
+    const vars = toCSSVariables(parsed.themes[mode], mode);
+    for (const [index, variant] of headings.entries()) {
+      assert.equal(vars[`--ds-typography-${variant}-font-size`], `${80 - index}px`);
+      assert.equal(vars[`--ds-typography-${variant}-font-weight`], `${500 + index * 10}`);
+      for (const field of typographyFields) {
+        assert.equal(vars[`--ds-typography-${variant}-${kebab(field.key)}`], `${resolveTypography(parsed.themes[mode], variant)[field.key]}${field.unit}`);
+      }
+    }
+    assert.equal(vars["--ds-typography-heading-font-size"], "32px");
+  }
+  const css = exportCSS(parsed);
+  for (const variant of headings) {
+    assert.equal(css.split(`--ds-typography-${variant}-font-size:`).length - 1, 2);
+  }
+});
+
+test("Text variants use their own CSS tokens and default semantic elements", () => {
+  const css = readFileSync(new URL("./components/components.module.css", import.meta.url), "utf8");
+  const source = readFileSync(new URL("./components/text.tsx", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const exports = {};
+  runInNewContext(compiled, {
+    exports,
+    require(id) {
+      if (id === "react/jsx-runtime") return { jsx: (tag, props) => ({ tag, props }) };
+      if (id === "../cx") return { cx: (...names) => names.filter(Boolean).join(" ") };
+      if (id === "./components.module.css") return { __esModule: true, default: { text: "text" } };
+      throw new Error(`Unexpected module: ${id}`);
+    },
+  });
+  for (const variant of typographyVariants) {
+    const expected = /^h[1-6]$/.test(variant) ? variant : variant === "heading" ? "h2" : variant === "paragraph" ? "p" : "span";
+    const element = exports.Text({ variant, children: "Example" });
+    assert.equal(element.tag, expected);
+    assert.equal(element.props["data-variant"], variant);
+    assert.equal(element.props["data-size"], "md");
+    if (variant !== "paragraph") for (const field of typographyFields) {
+      assert.match(css, new RegExp(`\\.text\\[data-variant="${variant}"\\] \\{[^}]*--text-${kebab(field.key)}: var\\(--ds-typography-${variant}-${kebab(field.key)}\\);`, "s"));
+    }
+    assert.equal(exports.Text({ variant, as: "span" }).tag, "span");
+  }
+  assert.equal(exports.Text({}).tag, "p");
+  assert.equal(exports.Text({ as: "h1", variant: "heading" }).tag, "h1");
+});
+
 test("typography is shared across themes; v3 import uses Light when old themes disagree", () => {
   const system = fresh();
-  system.themes.light.typography = { heading: { fontSize: 42, letterSpacing: -1 }, caption: { lineHeight: 2, fontWeight: 600 } };
-  system.themes.dark.typography = { heading: { fontSize: 44 } };
+  system.themes.light.typography = { heading: { fontSize: 42, letterSpacing: -1 }, h1: { fontSize: 56 }, h6: { fontWeight: 800 }, caption: { lineHeight: 2, fontWeight: 600 } };
+  system.themes.dark.typography = { heading: { fontSize: 44 }, h1: { fontSize: 60 } };
   const parsed = parse(system);
   for (const mode of modes) {
     assert.deepEqual(resolveTypography(parsed.themes[mode], "heading"), { ...defaultTypography.heading, fontSize: 42, letterSpacing: -1 });
     assert.equal(parsed.themes[mode].typography.caption.lineHeight, 2);
+    assert.equal(parsed.themes[mode].typography.h1.fontSize, 56);
+    assert.equal(parsed.themes[mode].typography.h6.fontWeight, 800);
     const css = toCSSVariables(parsed.themes[mode], mode);
     assert.equal(css["--ds-typography-heading-font-size"], "42px");
     assert.equal(css["--ds-typography-heading-letter-spacing"], "-1px");
@@ -439,6 +528,7 @@ test("optional extensions reject unknown keys and invalid values with specific p
       [["typography", "unknown"], {}], [["typography", "heading", "unknown"], 1],
       [["typography", "heading", "fontSize"], 0], [["typography", "label", "fontWeight"], "700"],
       [["typography", "caption", "lineHeight"], null], [["typography", "paragraph"], []],
+      [["typography", "h1", "fontSize"], 7], [["typography", "h6", "fontSize"], 97],
     ]) {
       const system = fresh();
       let target = system.themes[mode];

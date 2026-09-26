@@ -110,7 +110,7 @@ const reference: Record<ComponentId, { name: string; props: readonly PropRow[] }
   text: {
     name: "Text",
     props: [
-      ["variant", '"heading" | "paragraph" | "label" | "caption"', '"paragraph"', "textVariant"],
+      ["variant", '"h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "heading" | "paragraph" | "label" | "caption"', '"paragraph"', "textVariant"],
       size,
       ["tone", '"neutral" | "primary" | "secondary" | "success" | "warning" | "danger" | "info"', '"neutral"', "textTone"],
       ["as", '"h1"–"h6" | "p" | "span"', "By variant", "textAs"],

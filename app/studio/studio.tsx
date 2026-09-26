@@ -731,8 +731,8 @@ export default function Studio() {
           {selection === "text" && !isGlobal && <section className="token-section foundation-editor" id="typography-tokens">
             <div className="section-heading"><h3>Text styles</h3><span>PX / SCALE</span></div>
             <p>Typography tokens are shared by both themes and every Text variant.</p>
-            {typographyVariants.map((variant) => <details className="typography-variant" key={variant} open={variant === "heading" || undefined}>
-              <summary>{variant}</summary>
+            {typographyVariants.map((variant) => <details className="typography-variant" key={variant} open={variant === "heading" || variant === "h1" || undefined}>
+              <summary>{variant === "heading" ? "Legacy heading" : variant.toUpperCase()}</summary>
               <div className="typography-controls">
                 {typographyFields.map((field) => <TypographyControl key={`${workspaceRevision}-${activeTheme}-${variant}-${field.key}`} variant={variant} field={field}
                   value={resolveTypography(theme, variant)[field.key]}
