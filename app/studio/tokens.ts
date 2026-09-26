@@ -130,6 +130,31 @@ export type DesignSystem = {
   themes: Record<PaletteMode, ThemeTokens>;
 };
 
+/** Schema v3 retains both theme records; only color values may differ. */
+export function shareNonColorTokens(system: DesignSystem, from: PaletteMode = "light"): DesignSystem {
+  const other = from === "light" ? "dark" : "light";
+  const source = system.themes[from];
+  const target = system.themes[other];
+  const global = { ...target.global };
+  for (const field of tokenFields) {
+    if (field.type === "number") (global[field.key] as number) = source.global[field.key] as number;
+  }
+  const components = { ...target.components };
+  for (const id of componentIds) {
+    const overrides = { ...target.components[id] };
+    for (const key of componentTokenKeys) {
+      if (typeof source.global[key] !== "number") continue;
+      if (Object.hasOwn(source.components[id], key)) (overrides[key] as number) = source.components[id][key] as number;
+      else delete overrides[key];
+    }
+    components[id] = overrides;
+  }
+  return {
+    ...system,
+    themes: { ...system.themes, [other]: { ...target, global, components, typography: structuredClone(source.typography) } },
+  };
+}
+
 export const STORAGE_KEY = "bambiui.design-system.v1";
 
 /** Historical defaults are migration data, never generated palette values. */
@@ -510,7 +535,8 @@ export function parseDesignSystem(text: string): DesignSystem {
         [variant, resolveTypography(theme as ThemeTokens, variant)],
       ));
     }
-    return value as DesignSystem;
+    // Older v3 exports may disagree; retain Light geometry and both color palettes.
+    return shareNonColorTokens(value as DesignSystem);
   }
   if (value.version === 1) {
     // v1 predates the extended roles and size scale: accept only v1 keys, then

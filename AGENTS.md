@@ -24,6 +24,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Read `docs/component-api.md` before creating or modifying a component in `app/studio/components/`.
 - Every component implements the full prop set for its category (`variant`, `size`, `tone`, states, content props) with the shared names and defaults defined there.
 
+## Theme token invariants
+
+- Schema v3 retains Light and Dark theme records, but only colors (including generated scales and component color overrides) may differ. Shape, spacing, sizing, and typography tokens are shared across both themes; keep edits, reset, import normalization, previews, and CSS export consistent with this invariant.
+
 ## Commit conventions
 
 - All commit messages must follow the Conventional Commits format enforced by commitlint: `<type>(<optional-scope>): <description>`.

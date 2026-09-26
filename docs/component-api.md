@@ -81,8 +81,8 @@ Typography values come from `--ds-typography-{variant}-{font-size,line-height,fo
 
 ## 4. Design tokens
 
-- **Theme model** (`app/studio/tokens.ts`): schema v3 stores `themes.light` and `themes.dark`, each with a source, global tokens and component overrides. Theme selection is UI state, not destructive palette application. v1/v2 migrate by copying their exact values into both themes independently.
-- **Global tokens** (`app/studio/tokens.ts`, editable per theme, exported as `--ds-*`):
+- **Theme model** (`app/studio/tokens.ts`): schema v3 stores `themes.light` and `themes.dark` with independent sources, color roles, color scales and component color overrides. All non-color tokens (global shape/spacing/size, component numeric overrides, Text typography) are shared across themes; edits from either theme update both records. Older v3 drafts with conflicting values use Light non-color values on import; both color palettes are retained. v1/v2 migrate by copying their exact values into both themes.
+- **Global tokens** (`app/studio/tokens.ts`, exported as `--ds-*`):
   - Surfaces: `background`, `foreground`, `muted`, `mutedForeground`, `border`
   - Roles: `primary`, `secondary`, `success`, `warning`, `danger` and `info`, each with an `on*` foreground
   - Shape and spacing: `radius`, `paddingX`, `paddingY`, `gap`, `margin`, `fontSize`, `borderWidth`

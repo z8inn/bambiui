@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   componentIds, componentTokenKeys, defaultSystem, exportCSS, isComponentKey,
-  parseDesignSystem, resolveColorScale, resolveComponent, resolveTypography, STORAGE_KEY, systemConstants,
+  parseDesignSystem, resolveColorScale, resolveComponent, resolveTypography, shareNonColorTokens, STORAGE_KEY, systemConstants,
   toCSSVariables, tokenFields, colorScaleRoles, colorScaleStops, typographyVariants, typographyFields, defaultTypography,
 } from "./tokens.ts";
 import { contrastRatio, deriveRoleColors, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
@@ -350,7 +350,7 @@ test("optional v3 extensions normalize old saves and retain existing data", () =
   }
   parsed.themes.light.typography.heading.fontSize = 42;
   assert.equal(parsed.themes.dark.typography.heading.fontSize, 32);
-  assert.deepEqual(parse(parsed), parsed);
+  assert.deepEqual(parse(parsed).themes.dark.typography.heading.fontSize, 42);
 });
 
 test("scale stops follow live global colors and keep manual overrides across palette application", () => {
@@ -379,21 +379,51 @@ test("scale stops follow live global colors and keep manual overrides across pal
   assert.match(exportCSS({ themes: { light: applied, dark: fresh().themes.dark } }), /--ds-primary-50: #AbCdEf;/);
 });
 
-test("typography defaults, partial overrides, CSS units, and theme independence", () => {
+test("typography is shared across themes; v3 import uses Light when old themes disagree", () => {
   const system = fresh();
-  system.themes.dark.typography = { heading: { fontSize: 44, letterSpacing: -1 }, caption: { lineHeight: 2, fontWeight: 600 } };
+  system.themes.light.typography = { heading: { fontSize: 42, letterSpacing: -1 }, caption: { lineHeight: 2, fontWeight: 600 } };
+  system.themes.dark.typography = { heading: { fontSize: 44 } };
   const parsed = parse(system);
-  assert.deepEqual(resolveTypography(parsed.themes.dark, "heading"), { ...defaultTypography.heading, fontSize: 44, letterSpacing: -1 });
-  assert.deepEqual(resolveTypography(parsed.themes.light, "heading"), defaultTypography.heading);
-  assert.deepEqual(parsed.themes.dark.typography.paragraph, defaultTypography.paragraph);
-  const css = toCSSVariables(parsed.themes.dark, "dark");
-  assert.equal(css["--ds-typography-heading-font-size"], "44px");
-  assert.equal(css["--ds-typography-heading-line-height"], "1.2");
-  assert.equal(css["--ds-typography-heading-font-weight"], "700");
-  assert.equal(css["--ds-typography-heading-letter-spacing"], "-1px");
-  assert.equal(css["--ds-typography-caption-line-height"], "2");
-  assert.match(exportCSS(parsed), /--ds-typography-heading-font-size: 44px;/);
+  for (const mode of modes) {
+    assert.deepEqual(resolveTypography(parsed.themes[mode], "heading"), { ...defaultTypography.heading, fontSize: 42, letterSpacing: -1 });
+    assert.equal(parsed.themes[mode].typography.caption.lineHeight, 2);
+    const css = toCSSVariables(parsed.themes[mode], mode);
+    assert.equal(css["--ds-typography-heading-font-size"], "42px");
+    assert.equal(css["--ds-typography-heading-letter-spacing"], "-1px");
+    assert.equal(css["--ds-typography-caption-line-height"], "2");
+  }
+  assert.match(exportCSS(parsed), /--ds-typography-heading-font-size: 42px;/);
   assert.deepEqual(typographyFields.map(({ key }) => key), ["fontSize", "lineHeight", "fontWeight", "letterSpacing"]);
+});
+
+test("shared geometry and typography follow edits in either theme; palette and color overrides stay independent", () => {
+  const system = fresh();
+  system.themes.dark.global.radius = 23;
+  system.themes.dark.global.controlHeightLg = 62;
+  system.themes.dark.components.button.paddingX = 29;
+  system.themes.dark.components.card.background = "#123456";
+  system.themes.dark.typography.heading.fontSize = 41;
+  system.themes.light.components.button.radius = 12;
+  const normalized = parse(system);
+  assert.equal(normalized.themes.dark.global.radius, 8);
+  assert.equal(normalized.themes.dark.global.controlHeightLg, 44);
+  assert.equal(normalized.themes.dark.components.button.paddingX, undefined);
+  assert.equal(normalized.themes.dark.components.button.radius, 12);
+  assert.equal(normalized.themes.dark.components.card.background, "#123456");
+  assert.equal(normalized.themes.dark.typography.heading.fontSize, 32);
+  normalized.themes.dark.global.gap = 21;
+  normalized.themes.dark.components.button.radius = 18;
+  delete normalized.themes.dark.components.button.paddingX;
+  normalized.themes.dark.typography.heading.fontSize = 46;
+  const edited = shareNonColorTokens(normalized, "dark");
+  assert.equal(edited.themes.light.global.gap, 21);
+  assert.equal(edited.themes.light.components.button.radius, 18);
+  assert.equal(edited.themes.light.components.button.paddingX, undefined);
+  assert.equal(edited.themes.light.typography.heading.fontSize, 46);
+  assert.notEqual(edited.themes.light.global.primary, edited.themes.dark.global.primary);
+  assert.equal(edited.themes.dark.components.card.background, "#123456");
+  assert.equal(parse(edited).themes.light.typography.heading.fontSize, 46);
+  assert.match(exportCSS(edited), /--ds-typography-heading-font-size: 46px;/);
 });
 
 test("optional extensions reject unknown keys and invalid values with specific paths", () => {
@@ -449,7 +479,7 @@ for (const [key, [min, max]] of Object.entries(numericRanges)) {
       const tokens = target === "global" ? theme.global : theme.components[target];
       for (const valid of [min, max, min + 0.5]) {
         tokens[key] = valid;
-        assert.deepEqual(parse(system), system);
+        assert.deepEqual(parse(system), shareNonColorTokens(system));
       }
       for (const invalid of [min - 0.1, max + 0.1, "10", null, true, {}, [], NaN, Infinity, -Infinity]) {
         tokens[key] = invalid;

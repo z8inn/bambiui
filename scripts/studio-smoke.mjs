@@ -292,7 +292,7 @@ try {
     assert.deepEqual((await stored()).themes.dark,before.themes.dark);
     assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-primary-500').trim()`),'#345678');
   });
-  await check('heading typography edits update Text, CSS, Docs and storage in only one theme',async()=>{
+  await check('heading typography edits update Text, CSS, Docs and storage in both themes',async()=>{
     await navigate('design','text');
     const before=await stored();
     const field=await evaluate(`${q('#typography-heading-fontSize')}?.id`);
@@ -300,7 +300,8 @@ try {
     await fill(`#${field}`,'42');
     await wait(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-typography-heading-font-size').trim()==='42px'`);
     assert.equal((await stored()).themes.light.typography.heading.fontSize,42);
-    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    assert.equal((await stored()).themes.dark.typography.heading.fontSize,42);
+    assert.deepEqual((await stored()).themes.dark.global,before.themes.dark.global);
     assert.equal(await evaluate(`getComputedStyle(${q('[data-specimen="text"] [data-variant="heading"][data-size="md"]')}).fontSize`),'42px');
     await click(q('[aria-label="Export tokens"]'));
     const css=await evaluate(`${q('[aria-label="Exported tokens"]')}.textContent`);
@@ -310,9 +311,35 @@ try {
     assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes('--ds-typography-heading-font-size') && ${q('.workspace-panel--develop')}.textContent.includes('42px')`));
     await reload();
     assert.equal((await stored()).themes.light.typography.heading.fontSize,42);
-    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    assert.equal((await stored()).themes.dark.typography.heading.fontSize,42);
+    assert.deepEqual((await stored()).themes.dark.global,before.themes.dark.global);
     await navigate('design','text');
     assert.equal(await evaluate(`getComputedStyle(${q('[data-specimen="text"] [data-variant="heading"][data-size="md"]')}).fontSize`),'42px');
+  });
+  await check('shape, component sizing and typography edits stay shared across Light and Dark',async()=>{
+    await navigate('design');
+    await fill('#token-radius','17');
+    assert.equal((await stored()).themes.dark.global.radius,17);
+    await click(named(themeControl + ' button','Dark'));
+    assert.equal(await evaluate(`${q('#token-radius')}.value`),'17');
+    await fill('#token-radius','19');
+    assert.equal((await stored()).themes.light.global.radius,19);
+    await fill('#token-radius','8');
+    await navigate('design','button');
+    await fill('#token-paddingX','27');
+    assert.equal((await stored()).themes.light.components.button.paddingX,27);
+    await click(named(themeControl + ' button','Light'));
+    assert.equal(await evaluate(`${q('#token-paddingX')}.value`),'27');
+    assert.equal((await stored()).themes.light.global.radius,8);
+    await navigate('design','text');
+    assert.equal(await evaluate(`${q('#typography-heading-fontSize')}.value`),'42');
+    await click(named(themeControl + ' button','Dark'));
+    assert.equal(await evaluate(`${q('#typography-heading-fontSize')}.value`),'42');
+    await navigate('design','button');
+    await click(q('[aria-label="Reset horizontal padding override"]'));
+    assert.equal((await stored()).themes.light.components.button.paddingX,undefined);
+    assert.equal((await stored()).themes.dark.components.button.paddingX,undefined);
+    await click(named(themeControl + ' button','Light'));
   });
   await check('contrast warnings follow manual edits and exported CSS/JSON keep both themes',async()=>{
     await navigate('design','button');

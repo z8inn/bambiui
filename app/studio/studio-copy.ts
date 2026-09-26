@@ -24,8 +24,8 @@ export const copy = {
     foundations: "The foundations", componentTokens: (name: string) => `${name} tokens`, foundationsHint: "Shared across every component.",
     inheritComponent: "Values inherit from global tokens until you change them. Reset to reconnect.",
     colors: "Colors", shape: "Shape & spacing", resetGlobal: "Reset global tokens", resetComponent: "Reset component overrides", changes: "Changes apply instantly",
-    confirmGlobal: (mode: string) => `Reset ${mode} global tokens? Component overrides and the other theme will be kept.`,
-    confirmComponent: (mode: string, name: string) => `Reset all ${mode} ${name} overrides to global tokens?`,
+    confirmGlobal: (mode: string) => `Reset ${mode} global colors and shared shape and spacing? Component overrides and the other theme’s colors will be kept.`,
+    confirmComponent: (mode: string, name: string) => `Reset ${mode} ${name} color overrides and shared sizing overrides to global tokens?`,
     override: "Override", inherited: "Global", resetOverride: (name: string) => `Reset ${name.toLowerCase()} override`, resetTip: "Reset to global token", inheritedTip: "Inherited from global tokens",
     colorPicker: (name: string) => `${name} color picker`, slider: (name: string) => `${name} slider`, invalidColor: "Use a six-digit hex color.", invalidNumber: (min: number, max: number) => `Use a value from ${min} to ${max}.`,
     tokenLabels: {

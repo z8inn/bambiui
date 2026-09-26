@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { defaultSystem, exportCSS, parseDesignSystem, resolveComponent, toCSSVariables } from "./tokens.ts";
+import { defaultSystem, exportCSS, parseDesignSystem, resolveComponent, shareNonColorTokens, toCSSVariables } from "./tokens.ts";
 import { colorScaleStops, contrastRatio, deriveRoleColors, generateColorScale, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
 
 const seeds = ["#000000", "#ffffff", "#808080", "#010101", "#fefefe", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#e8673c", "#123456", "#faf0ff"];
@@ -179,7 +179,7 @@ test("applied palettes round-trip through the existing schema without losing ove
     theme.global.fontSize = 19;
     theme.components.button.background = "#123456";
     theme.components.card.paddingX = 0;
-    const applied = structuredClone(system);
+    const applied = shareNonColorTokens(system, mode);
     applied.themes[mode] = { ...theme, source: palette.source, global: { ...theme.global, ...palette[mode].tokens } };
     const restored = parseDesignSystem(JSON.stringify(applied));
     assert.deepEqual(restored, applied);

@@ -20,6 +20,7 @@ import {
   defaultTypography,
   resolveColorScale,
   resolveTypography,
+  shareNonColorTokens,
   defaultSystem,
   exportCSS,
   isComponentKey,
@@ -296,7 +297,7 @@ export default function Studio() {
   const output = format === "css" ? cssOutput : JSON.stringify(system, null, 2);
 
   function updateTheme(next: ThemeTokens, mode: PaletteMode = activeTheme) {
-    update({ ...system, themes: { ...system.themes, [mode]: next } });
+    update(shareNonColorTokens({ ...system, themes: { ...system.themes, [mode]: next } }, mode));
   }
 
   function setToken(key: keyof TokenValues, value: string | number) {
@@ -747,7 +748,7 @@ export default function Studio() {
           </section>}
           {selection === "text" && !isGlobal && <section className="token-section foundation-editor" id="typography-tokens">
             <div className="section-heading"><h3>Text styles</h3><span>PX / SCALE</span></div>
-            <p>Typography tokens are shared by every Text variant in the selected theme.</p>
+            <p>Typography tokens are shared by both themes and every Text variant.</p>
             {typographyVariants.map((variant) => <details className="typography-variant" key={variant} open={variant === "heading" || undefined}>
               <summary>{variant}</summary>
               <div className="typography-controls">
