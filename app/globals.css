@@ -1044,7 +1044,8 @@ button.inherit-button {
     max-width: 100%;
     flex-direction: row;
     align-items: center;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 8px 15px;
     border-bottom: 1px solid var(--studio-color-border);
     border-right: none;
@@ -1059,11 +1060,8 @@ button.inherit-button {
   }
   .component-nav {
     display: flex;
-    flex: 1;
-    min-width: 0;
-    max-width: 100%;
+    flex: none;
     gap: 4px;
-    overflow-x: auto;
   }
   .nav-item {
     flex-shrink: 0;

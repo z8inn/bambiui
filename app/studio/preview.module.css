@@ -115,6 +115,8 @@
 
 .foundations {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 44px;
   margin-bottom: 56px;
 }
@@ -135,13 +137,20 @@
   text-underline-offset: 4px;
 }
 
+.foundation[data-selected] h2 a {
+  background: color-mix(in srgb, var(--ds-foreground) 12%, transparent);
+  text-decoration-color: currentColor;
+}
+
 .foundation > p {
   margin-block: 8px 18px;
   color: var(--ds-muted-foreground);
 }
 
 .scaleRegion {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
@@ -175,10 +184,38 @@
 }
 
 .swatch {
+  position: relative;
+  display: block;
   height: 34px;
   border: 1px solid var(--ds-border);
   border-radius: 5px;
 }
+
+.spacingSamples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.spacingSample {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius);
+  color: var(--ds-foreground);
+  text-decoration: none;
+}
+
+.spacingSample:hover,
+.spacingSample:focus-visible {
+  background: var(--ds-muted);
+}
+
+.spacingSample strong { white-space: nowrap; }
 
 .foundationText {
   display: grid;
@@ -402,7 +439,8 @@
     will-change: auto;
   }
 
-  .grid {
+  .grid,
+  .spacingSamples {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -23,6 +23,7 @@ import {
   componentIds,
   colorScaleRoles,
   colorScaleStops,
+  tokenFields,
   resolveColorScale,
   typographyVariants,
   toCSSVariables,
@@ -297,6 +298,7 @@ function Showcase({
     <section
       className={styles.showcase}
       data-specimen={id}
+      data-canvas-unit={id}
       data-selected={selected || undefined}
       aria-label={copy.showcase.preview(name)}
       onClickCapture={() => onSelect(id)}
@@ -336,7 +338,7 @@ function ThemePane({ theme, mode, children, copy }: {
 }
 
 export function Preview({ selected, system, mode, active = true, onSelectColorRole }: {
-  selected: "overview" | ComponentId;
+  selected: "overview" | "colors" | "spacing" | ComponentId;
   system: DesignSystem;
   mode: PaletteMode;
   active?: boolean;
@@ -470,7 +472,7 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
     const frame = requestAnimationFrame(() => {
       const view = viewport.current;
       const element = canvas.current;
-      const target = selected === "overview" ? element : element?.querySelector<HTMLElement>(`[data-specimen="${selected}"]`);
+      const target = selected === "overview" ? element : element?.querySelector<HTMLElement>(`[data-canvas-unit="${selected}"]`);
       if (!view || !element || !target || !view.clientWidth) return;
       if (naturalLayout()) {
         if (selected !== "overview") target.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
@@ -480,10 +482,14 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
         const bounds = target.getBoundingClientRect();
         const box = view.getBoundingClientRect();
         const current = camera.current;
+        // A previous Fit should not leave a newly selected unit too small to edit.
+        const zoom = Math.max(current.zoom, 1);
+        const worldX = (bounds.left - box.left + bounds.width / 2 - current.x) / current.zoom;
+        const worldY = (bounds.top - box.top + bounds.height / 2 - current.y) / current.zoom;
         moveCamera({
-          ...current,
-          x: current.x + view.clientWidth / 2 - (bounds.left - box.left + bounds.width / 2),
-          y: current.y + view.clientHeight / 2 - (bounds.top - box.top + bounds.height / 2),
+          x: view.clientWidth / 2 - worldX * zoom,
+          y: view.clientHeight / 2 - worldY * zoom,
+          zoom,
         }, initialized.current);
       }
       initialized.current = true;
@@ -509,7 +515,7 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
         <button type="button" onClick={fit}>Fit</button>
         <button type="button" onClick={() => changeZoom(1)}>Reset zoom</button>
       </div>
-      <p id={helpId} className={styles.srOnly}>On desktop, drag empty space or use the mouse wheel to pan without bounds. Hold Control or Command while scrolling to zoom at the pointer; Shift and scroll pans horizontally. Focus the canvas and use arrow keys to pan, or use Fit and zoom buttons. On mobile, scroll the page normally. Select a component heading or interact with a specimen to edit its tokens.</p>
+      <p id={helpId} className={styles.srOnly}>On desktop, drag empty space or use the mouse wheel to pan without bounds. Hold Control or Command while scrolling to zoom at the pointer; Shift and scroll pans horizontally. Focus the canvas and use arrow keys to pan, or use Fit and zoom buttons. On mobile, scroll the page normally. Select a heading or interact with a canvas unit to edit its tokens.</p>
       <div
         ref={viewport}
         className={styles.viewport}
@@ -573,8 +579,8 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
       >
         <div ref={canvas} data-canvas className={styles.canvas}>
           <div className={styles.foundations}>
-            <section data-foundation="colors" aria-labelledby="canvas-colors-title" className={styles.foundation}>
-              <h2 id="canvas-colors-title">Colors</h2>
+            <section data-foundation="colors" data-canvas-unit="colors" data-selected={selected === "colors" || undefined} aria-labelledby="canvas-colors-title" className={styles.foundation}>
+              <h2 id="canvas-colors-title"><Link href="/colors" aria-current={selected === "colors" ? "page" : undefined}>Colors</Link></h2>
               <p>Generated from the current theme. Select a role to edit its 50–1000 tokens.</p>
               <div className={styles.scaleRegion} role="region" aria-label="Color scale reference" tabIndex={0}>
                 <div className={styles.scaleTable}>
@@ -582,15 +588,25 @@ export function Preview({ selected, system, mode, active = true, onSelectColorRo
                   {colorScaleRoles.map((role) => {
                     const scale = resolveColorScale(system.themes[mode], mode, role);
                     return <div className={styles.scaleRow} key={role}>
-                      <Link href="/#color-scales" onClick={() => onSelectColorRole?.(role)}>{role}</Link>
-                      {colorScaleStops.map((stop) => <div key={stop} className={styles.swatch} title={`${role} ${stop}: ${scale[stop]}`} style={{ backgroundColor: scale[stop] }}><span className={styles.srOnly}>{role} {stop}: {scale[stop]}</span></div>)}
+                      <Link href="/colors" onClick={() => onSelectColorRole?.(role)}>{role}</Link>
+                      {colorScaleStops.map((stop) => <Link key={stop} href="/colors" onClick={() => onSelectColorRole?.(role)} className={styles.swatch} aria-label={`Edit ${role} ${stop} color: ${scale[stop]}`} title={`${role} ${stop}: ${scale[stop]}`} style={{ backgroundColor: scale[stop] }}><span className={styles.srOnly}>{role} {stop}: {scale[stop]}</span></Link>)}
                     </div>;
                   })}
                 </div>
               </div>
             </section>
-            <section data-foundation="text" aria-labelledby="canvas-text-title" className={styles.foundation}>
-              <h2 id="canvas-text-title"><Link href="/text">Text styles</Link></h2>
+            <section data-foundation="spacing" data-canvas-unit="spacing" data-selected={selected === "spacing" || undefined} aria-labelledby="canvas-spacing-title" className={styles.foundation}>
+              <h2 id="canvas-spacing-title"><Link href="/spacing" aria-current={selected === "spacing" ? "page" : undefined}>Shape &amp; spacing</Link></h2>
+              <p>Shared dimensions for both themes. Select a token to edit its global value.</p>
+              <div className={styles.spacingSamples}>
+                {tokenFields.filter((field) => field.type === "number").map((field) => <Link key={field.key} href="/spacing" className={styles.spacingSample}>
+                  <span>{field.label}</span><strong>{system.themes[mode].global[field.key]}px</strong>
+                </Link>)}
+              </div>
+            </section>
+            <section data-foundation="text" data-canvas-unit="text-foundation" aria-labelledby="canvas-text-title" className={styles.foundation}
+                          onClickCapture={(event) => { if (!(event.target instanceof Element) || !event.target.closest("a")) selectSpecimen("text"); }}>
+              <h2 id="canvas-text-title"><Link href="/text" aria-current={selected === "text" ? "page" : undefined}>Text styles</Link></h2>
               <p>Theme typography tokens power the Text component.</p>
               <div className={styles.foundationText}>
                 {typographyVariants.map((variant) => <div key={variant}>

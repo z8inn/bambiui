@@ -13,6 +13,7 @@ import {
   toCSSVariables,
   tokenFields,
   componentTokenKeys,
+  componentIds,
   type ThemeTokens,
   type ComponentId,
   type DesignSystem,
@@ -23,7 +24,7 @@ import type { PaletteMode } from "./color-engine";
 
 
 export type DeveloperViewProps = {
-  selected: "overview" | ComponentId;
+  selected: "overview" | "colors" | "spacing" | ComponentId;
   system: DesignSystem;
   mode: PaletteMode;
   cssOutput: string;
@@ -175,7 +176,7 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
   );
 }
 
-function ColorRamp({ theme, mode, variables }: { theme: ThemeTokens; mode: PaletteMode; variables: Record<string, string> }) {
+function ColorRamp({ theme, mode, variables, copyable = false }: { theme: ThemeTokens; mode: PaletteMode; variables: Record<string, string>; copyable?: boolean }) {
   const copy = developerCopy;
   return (
     <section className={styles.section}>
@@ -194,7 +195,7 @@ function ColorRamp({ theme, mode, variables }: { theme: ThemeTokens; mode: Palet
                   const name = `--ds-${role}-${stop}`;
                   return <td key={stop}>
                     <span className={styles.swatch} style={{ backgroundColor: `var(${name}, ${scale[stop]})` }} aria-hidden="true" />
-                    <code>{name}</code><code>{variables[name]}</code>
+                    <code>{name}</code>{copyable && <CopyToken value={name} />}<code>{variables[name]}</code>{copyable && <CopyToken value={variables[name]} />}
                   </td>;
                 })}
               </tr>
@@ -234,12 +235,121 @@ function TypographyReference({ theme, variables }: { theme: ThemeTokens; variabl
   );
 }
 
+function cssName(key: string, prefix = "--ds-") {
+  return `${prefix}${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+}
+
+function CopyToken({ value }: { value: string }) {
+  const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setStatus("copied");
+    } catch {
+      setStatus("error");
+    }
+  }
+  return <span className={styles.copyToken}>
+    <button type="button" onClick={copy} aria-label={`Copy ${value}`} title={`Copy ${value}`}>Copy</button>
+    <span className={styles.copyFeedback} role="status">{status === "copied" ? "Copied" : status === "error" ? "Copy failed" : ""}</span>
+  </span>;
+}
+
+function FoundationTokens({ theme, mode, variables, kind }: {
+  theme: ThemeTokens;
+  mode: PaletteMode;
+  variables: Record<string, string>;
+  kind: "colors" | "spacing";
+}) {
+  const colors = kind === "colors";
+  const fields = tokenFields.filter((field) => field.type === (colors ? "color" : "number"));
+  const keys = componentTokenKeys.filter((key) => colors
+    ? key === "background" || key === "foreground" || key === "border"
+    : key !== "background" && key !== "foreground" && key !== "border");
+  const derived = Object.entries(variables).filter(([name]) =>
+    /^(--ds-(primary|secondary|success|warning|danger|info)-(hover|active|subtle|on-subtle|outline|focus)|--button-(hover|active)|--badge-(neutral|primary|success|warning|danger|info)-(subtle|on-subtle|outline)|--card-(filled-)?description)$/.test(name));
+
+  return <>
+    <section className={styles.section}>
+      <h2>{colors ? "Colors" : "Spacing & sizing"}</h2>
+      <p>{colors
+        ? `These are the ${mode} theme’s live color roles. Light and dark have independent colors, scales, and component color overrides. Values below follow the CSS export, not a static palette.`
+        : "Shape, spacing, and sizing tokens are shared across light and dark themes. Editing either theme updates both; only colors differ. Values below are the live exported CSS values in pixels."}</p>
+      <h3>{colors ? "Global color roles" : "Global shape, spacing & sizing"}</h3>
+      <p>{colors
+        ? "Surface and semantic roles include foreground partners for readable content on their fills. Use the CSS variable in styles; copy a name or value from the table."
+        : "Use these global variables for consistent radius, insets, gaps, type size, borders, and control heights. The sm/md/lg heights are shared across controls."}</p>
+      <ScrollRegion label={colors ? "Global color roles" : "Global spacing and sizing tokens"}>
+        <table className={styles.table}>
+          <caption>{colors ? `${mode} global colors` : "Shared global numeric tokens"}</caption>
+          <thead><tr><th scope="col">Token</th><th scope="col">CSS variable</th><th scope="col">Value</th></tr></thead>
+          <tbody>{fields.map(({ key, label }) => {
+            const name = cssName(key);
+            return <tr key={key}>
+              <th scope="row">{label}</th>
+              <td><code>{name}</code><CopyToken value={name} /></td>
+              <td><span className={styles.tokenValue}>{colors && <span className={styles.inlineSwatch} style={{ backgroundColor: variables[name] }} aria-hidden="true" />}<code>{variables[name]}</code></span><CopyToken value={variables[name]} /></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </ScrollRegion>
+    </section>
+    {colors && <ColorRamp theme={theme} mode={mode} variables={variables} copyable />}
+    <section className={styles.section}>
+      <h3>{colors ? "Component color tokens" : "Component numeric tokens"}</h3>
+      <p>{colors
+        ? "Each component has background, foreground, and border aliases. A declared override replaces the inherited global value even if they currently match. Other variant and state colors are derived separately."
+        : "Component radius, padding, gap, margin, font size, and border width inherit global tokens until explicitly overridden. These aliases are shared between light and dark."}</p>
+      <ScrollRegion label={colors ? "Component color aliases" : "Component numeric aliases"}>
+        <table className={styles.table}>
+          <caption>{colors ? `${mode} component color aliases` : "Shared component numeric aliases"}</caption>
+          <thead><tr><th scope="col">Component</th><th scope="col">CSS variable</th><th scope="col">Source</th><th scope="col">Resolved value</th></tr></thead>
+          <tbody>{componentIds.flatMap((id) => keys.map((key) => {
+            const name = cssName(key, `--${id}-`);
+            const declaration = variables[name];
+            const inherited = /^var\((--ds-[a-z-]+)\)$/.exec(declaration)?.[1];
+            const value = inherited ? variables[inherited] : declaration;
+            return <tr key={name}>
+              <th scope="row">{reference[id].name}</th>
+              <td><code>{name}</code><CopyToken value={name} /></td>
+              <td>{inherited ? <>Inherited from <code>{inherited}</code></> : "Override"}</td>
+              <td><span className={styles.tokenValue}>{colors && <span className={styles.inlineSwatch} style={{ backgroundColor: value }} aria-hidden="true" />}<code>{value}</code></span><CopyToken value={value} /></td>
+            </tr>;
+          }))}</tbody>
+        </table>
+      </ScrollRegion>
+    </section>
+    {colors && <section className={styles.section}>
+      <h3>Derived color variables</h3>
+      <p>Hover, active, subtle, on-subtle, outline, focus, and component-specific colors are computed from the current theme and overrides. They are not separate editable roles; use these variables for states and readable text.</p>
+      <ScrollRegion label="Derived color variables">
+        <table className={styles.table}>
+          <caption>{mode} derived color variables</caption>
+          <thead><tr><th scope="col">CSS variable</th><th scope="col">Value</th></tr></thead>
+          <tbody>{derived.map(([name, value]) => <tr key={name}><th scope="row"><code>{name}</code><CopyToken value={name} /></th><td><span className={styles.tokenValue}><span className={styles.inlineSwatch} style={{ backgroundColor: value }} aria-hidden="true" /><code>{value}</code></span><CopyToken value={value} /></td></tr>)}</tbody>
+        </table>
+      </ScrollRegion>
+    </section>}
+    <section className={styles.section}>
+      <h3>CSS variable reference</h3>
+      <p>{colors
+        ? "Use global roles and scales with var(--ds-…), or a component alias with var(--button-…). The exported CSS contains both light and dark selectors; the active theme determines the resolved color."
+        : "Use var(--ds-…) for shared dimensions and var(--button-…) for component aliases. Numeric token declarations use px; component aliases inherit via var() unless overridden. Both theme selectors export the same non-color values."}</p>
+      <ScrollRegion label={colors ? "Color CSS example" : "Spacing CSS example"}>
+        <pre className={styles.code}><code>{colors
+          ? `.example {\n  color: var(--ds-foreground);\n  background: var(--ds-background);\n  border-color: var(--ds-border);\n  outline-color: var(--ds-primary-focus);\n}\n.example--accent { background: var(--ds-primary-500); }`
+          : `.example {\n  padding: var(--ds-padding-y) var(--ds-padding-x);\n  gap: var(--ds-gap);\n  border-radius: var(--ds-radius);\n  min-height: var(--ds-control-height-md);\n}\n.button-example { padding-inline: var(--button-padding-x); }`}</code></pre>
+      </ScrollRegion>
+    </section>
+  </>;
+}
+
 export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperViewProps) {
   const copy = developerCopy;
-  const component = selected === "overview" ? null : reference[selected];
+  const component = selected === "overview" || selected === "colors" || selected === "spacing" ? null : reference[selected];
   const theme = system.themes[mode];
   const variables = useMemo(() => toCSSVariables(theme, mode), [theme, mode]);
-  const prefix = selected === "overview" ? "--ds-" : `--${selected}-`;
+  const prefix = selected === "overview" || selected === "colors" || selected === "spacing" ? "--ds-" : `--${selected}-`;
   const editableNames = new Set((selected === "overview" ? tokenFields.map(({ key }) => key) : [...componentTokenKeys])
     .map((key) => `${prefix}${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`));
   const tokens = Object.entries(variables).filter(([name]) => editableNames.has(name));
@@ -251,7 +361,7 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
         <p className={styles.systemName}>{copy.system}: {system.name} · {copy.modeName[mode]} {copy.theme} · {copy.source} {system.themes[mode].source}</p>
       </header>
 
-      {selected !== "overview" && component && (
+      {selected !== "overview" && selected !== "colors" && selected !== "spacing" && component && (
         <>
           <ReactUsage key={selected} selected={selected} />
           <details className={styles.reference}>
@@ -278,10 +388,11 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
         </>
       )}
 
+      {(selected === "colors" || selected === "spacing") && <FoundationTokens theme={theme} mode={mode} variables={variables} kind={selected} />}
       {selected === "overview" && <ColorRamp theme={theme} mode={mode} variables={variables} />}
       {(selected === "overview" || selected === "text") && <TypographyReference theme={theme} variables={variables} />}
 
-      {selected !== "text" && <details className={styles.reference} open={selected === "overview"}>
+      {selected !== "colors" && selected !== "spacing" && <details className={styles.reference} open={selected === "overview"}>
         <summary>{component ? copy.tokenInheritance : copy.globalTokenReference}</summary>
         <p>
           {component
@@ -309,7 +420,7 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
         </ScrollRegion>
       </details>}
 
-      {selected !== "text" && derived.length > 0 && (
+      {selected !== "colors" && selected !== "spacing" && derived.length > 0 && (
         <details className={styles.reference}>
           <summary>{copy.derivedColors}</summary>
           <p>{copy.derivedDescription(mode)}</p>
