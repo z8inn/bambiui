@@ -85,7 +85,7 @@
   overflow: clip;
   overscroll-behavior: contain;
   background-color: var(--ds-background);
-  background-image: radial-gradient(var(--preview-grid-dot) 1px, transparent 1px);
+  background-image: radial-gradient(var(--preview-grid-dot) var(--canvas-dot-radius, 1px), transparent var(--canvas-dot-radius, 1px));
   background-size: 16px 16px;
   cursor: grab;
 }
@@ -111,6 +111,97 @@
 
 .showcase :is(a, button, input, textarea, select, label) {
   cursor: auto;
+}
+
+.foundations {
+  display: grid;
+  gap: 44px;
+  margin-bottom: 56px;
+}
+
+.foundation {
+  min-width: 0;
+  padding: 16px 8px;
+}
+
+.foundation h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.foundation h2 a {
+  color: inherit;
+  text-underline-offset: 4px;
+}
+
+.foundation > p {
+  margin-block: 8px 18px;
+  color: var(--ds-muted-foreground);
+}
+
+.scaleRegion {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.scaleRegion:focus-visible {
+  outline: 2px solid var(--ds-foreground);
+  outline-offset: 2px;
+}
+
+.scaleTable {
+  min-width: 800px;
+}
+
+.scaleRow {
+  display: grid;
+  grid-template-columns: 90px repeat(11, minmax(0, 1fr));
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+}
+
+.scaleRow:first-child {
+  color: var(--ds-foreground);
+  font-size: 11px;
+  text-align: center;
+}
+
+.scaleRow a {
+  color: var(--ds-foreground);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.swatch {
+  height: 34px;
+  border: 1px solid var(--ds-border);
+  border-radius: 5px;
+}
+
+.foundationText {
+  display: grid;
+  gap: 20px;
+}
+
+.foundationText > div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+}
+
+.foundationText > div > span {
+  color: var(--ds-muted-foreground);
+  text-transform: capitalize;
+}
+
+.textSamples {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  width: 100%;
 }
 
 .grid {
@@ -313,6 +404,15 @@
 
   .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scaleTable {
+    min-width: 760px;
+  }
+
+  .foundationText > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
   }
 
   .sizeGroup {

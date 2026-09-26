@@ -13,6 +13,13 @@ import { mixColors, type PaletteMode } from "./color-engine";
 import { copy as t } from "./studio-copy";
 import {
   componentIds,
+  colorScaleRoles,
+  colorScaleStops,
+  typographyFields,
+  typographyVariants,
+  defaultTypography,
+  resolveColorScale,
+  resolveTypography,
   defaultSystem,
   exportCSS,
   isComponentKey,
@@ -21,7 +28,11 @@ import {
   STORAGE_KEY,
   tokenFields,
   type ComponentId,
+  type ColorScaleRole,
+  type ColorScaleStop,
   type ComponentTokens,
+  type TypographyVariant,
+  type TypographyTokens,
   type DesignSystem,
   type ThemeTokens,
   type TokenField,
@@ -158,6 +169,53 @@ function TokenControl({
   );
 }
 
+function ScaleStopControl({ role, stop, value, overridden, onChange, onReset }: {
+  role: ColorScaleRole;
+  stop: ColorScaleStop;
+  value: string;
+  overridden: boolean;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const label = `${role} ${stop}`;
+  const valid = /^#[0-9a-f]{6}$/i.test(draft ?? value);
+  return <div className="scale-stop-control">
+    <label htmlFor={`scale-${role}-${stop}`}>{label}</label>
+    <div className="scale-stop-input">
+      <input type="color" aria-label={`${label} color picker`} value={value} onChange={(event) => { setDraft(null); onChange(event.target.value); }} />
+      <input id={`scale-${role}-${stop}`} type="text" value={draft ?? value} spellCheck={false} aria-invalid={!valid}
+        onChange={(event) => { setDraft(event.target.value); if (/^#[0-9a-f]{6}$/i.test(event.target.value)) onChange(event.target.value); }}
+        onBlur={() => setDraft(null)} />
+      {overridden && <button type="button" aria-label={`Reset ${label} to generated color`} onClick={() => { setDraft(null); onReset(); }}>Reset</button>}
+    </div>
+    {!valid && <span className="studio-text-danger">Use a six-digit hex color.</span>}
+  </div>;
+}
+
+function TypographyControl({ variant, field, value, onChange }: {
+  variant: TypographyVariant;
+  field: (typeof typographyFields)[number];
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const number = Number(draft ?? value);
+  const valid = (draft ?? String(value)).trim() !== "" && Number.isFinite(number) && number >= field.min && number <= field.max;
+  const label = `${variant} ${field.label}`;
+  return <div className="typography-control">
+    <label htmlFor={`typography-${variant}-${field.key}`}>{field.label}</label>
+    <div className="typography-input">
+      <input id={`typography-${variant}-${field.key}`} type="number" step="any" min={field.min} max={field.max} value={draft ?? value}
+        aria-label={label} aria-invalid={!valid}
+        onChange={(event) => { setDraft(event.target.value); const next = Number(event.target.value); if (event.target.value.trim() && Number.isFinite(next) && next >= field.min && next <= field.max) onChange(next); }}
+        onBlur={() => setDraft(null)} />
+      <span>{field.unit || "—"}</span>
+    </div>
+    {!valid && <span className="studio-text-danger">Use a value from {field.min} to {field.max}.</span>}
+  </div>;
+}
+
 export default function Studio() {
   const [system, setSystem] = useState<DesignSystem>(defaultSystem);
   const [ready, setReady] = useState(false);
@@ -178,6 +236,7 @@ export default function Studio() {
   }
   const [query, setQuery] = useState("");
   const [activeTheme, setActiveTheme] = useState<PaletteMode>("light");
+  const [scaleRole, setScaleRole] = useState<ColorScaleRole>("primary");
 
   const [status, setStatus] = useState<"loading" | "saved" | "draft" | "unsaved">("loading");
   const [notice, setNotice] = useState<"" | "loadError" | "storageError" | "imported" | "importError">("");
@@ -228,7 +287,7 @@ export default function Studio() {
   const isGlobal = scope === "global";
   const values = isGlobal ? theme.global : resolveComponent(theme, component);
   const fields = tokenFields.filter(
-    ({ key }) => isGlobal || isComponentKey(key),
+    ({ key }) => isGlobal || (isComponentKey(key) && (component !== "text" || key === "foreground")),
   );
   const colorFields = fields.filter((field) => field.type === "color");
   const numberFields = fields.filter((field) => field.type === "number");
@@ -251,6 +310,26 @@ export default function Studio() {
           [component]: { ...theme.components[component], [key]: value },
         },
       });
+  }
+
+  function setScaleStop(stop: ColorScaleStop, value: string) {
+    updateTheme({ ...theme, colorScales: {
+      ...theme.colorScales,
+      [scaleRole]: { ...theme.colorScales?.[scaleRole], [stop]: value },
+    } });
+  }
+
+  function resetScaleStop(stop: ColorScaleStop) {
+    const roleOverrides = { ...theme.colorScales?.[scaleRole] };
+    delete roleOverrides[stop];
+    updateTheme({ ...theme, colorScales: { ...theme.colorScales, [scaleRole]: roleOverrides } });
+  }
+
+  function setTypography(variant: TypographyVariant, field: keyof TypographyTokens, value: number) {
+    updateTheme({ ...theme, typography: {
+      ...theme.typography,
+      [variant]: { ...resolveTypography(theme, variant), [field]: value },
+    } });
   }
 
   function resetToken(key: keyof ComponentTokens) {
@@ -457,6 +536,7 @@ export default function Studio() {
         >
           {t.overview}
         </NavItem>
+        <NavItem icon={<Icon name="colors" />} href="/#color-scales" current={false}>Colors</NavItem>
         <div className="sidebar-divider" />
         <div className="sidebar-section-label flex justify-between">
           {t.components.toUpperCase()}
@@ -547,7 +627,7 @@ export default function Studio() {
             )}
             <section hidden={view !== "design"} aria-label={t.design} className="workspace-panel workspace-panel--design preview-canvas">
               <div className="preview-frame">
-                <Preview selected={selection} system={system} mode={activeTheme} active={view === "design"} />
+                <Preview selected={selection} system={system} mode={activeTheme} active={view === "design"} onSelectColorRole={setScaleRole} />
               </div>
             </section>
             <section hidden={view !== "develop"} aria-label={t.develop} className="workspace-panel workspace-panel--develop">
@@ -651,6 +731,35 @@ export default function Studio() {
               </div>
             </section>
           ))}
+          {isGlobal && <section className="token-section foundation-editor" id="color-scales">
+            <div className="section-heading"><h3>Color scale</h3><span>50–1000</span></div>
+            <label htmlFor="color-scale-role">Color role</label>
+            <select id="color-scale-role" value={scaleRole} onChange={(event) => setScaleRole(event.target.value as ColorScaleRole)}>
+              {colorScaleRoles.map((role) => <option key={role} value={role}>{role}</option>)}
+            </select>
+            <p>Stops follow the current {activeTheme} theme role until overridden.</p>
+            <div className="scale-stop-list">
+              {colorScaleStops.map((stop) => <ScaleStopControl key={`${workspaceRevision}-${activeTheme}-${scaleRole}-${stop}`} role={scaleRole} stop={stop}
+                value={resolveColorScale(theme, activeTheme, scaleRole)[stop]}
+                overridden={Object.hasOwn(theme.colorScales?.[scaleRole] ?? {}, stop)}
+                onChange={(value) => setScaleStop(stop, value)} onReset={() => resetScaleStop(stop)} />)}
+            </div>
+          </section>}
+          {selection === "text" && !isGlobal && <section className="token-section foundation-editor" id="typography-tokens">
+            <div className="section-heading"><h3>Text styles</h3><span>PX / SCALE</span></div>
+            <p>Typography tokens are shared by every Text variant in the selected theme.</p>
+            {typographyVariants.map((variant) => <details className="typography-variant" key={variant} open={variant === "heading" || undefined}>
+              <summary>{variant}</summary>
+              <div className="typography-controls">
+                {typographyFields.map((field) => <TypographyControl key={`${workspaceRevision}-${activeTheme}-${variant}-${field.key}`} variant={variant} field={field}
+                  value={resolveTypography(theme, variant)[field.key]}
+                  onChange={(value) => setTypography(variant, field.key, value)} />)}
+                <Button type="button" onClick={() => updateTheme({ ...theme, typography: { ...theme.typography, [variant]: { ...defaultTypography[variant] } } })}>
+                  Reset {variant}
+                </Button>
+              </div>
+            </details>)}
+          </section>}
           <Button
             className="reset-button"
             fullWidth

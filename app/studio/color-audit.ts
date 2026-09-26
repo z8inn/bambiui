@@ -112,6 +112,9 @@ export function auditSystemColors(theme: ThemeTokens, mode: PaletteMode = "light
     if (component === "switch") add("switch.unchecked.thumb", "Switch enabled unchecked thumb on track", g.foreground, g.muted, 3, component);
   }
 
+  const text = resolveComponent(theme, "text");
+  add("text.foreground", "Text neutral on global surface", text.foreground, g.background, 4.5, "text");
+
   const card = resolveComponent(theme, "card");
   add("card.foreground", "Card outlined/elevated text", card.foreground, card.background, 4.5, "card");
   add("card.description", "Card outlined/elevated description", v["--card-description"], card.background, 4.5, "card");

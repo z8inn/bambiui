@@ -211,6 +211,34 @@
   color: var(--studio-color-text-secondary);
 }
 
+.rampTable {
+  min-width: 1320px;
+}
+
+.rampTable td {
+  min-width: 105px;
+}
+
+.rampTable td code {
+  display: block;
+  white-space: nowrap;
+}
+
+.swatch {
+  display: block;
+  height: 36px;
+  margin-bottom: 8px;
+  border: 1px solid var(--studio-color-border);
+  border-radius: 4px;
+}
+
+.typeSample {
+  display: inline-block;
+  min-width: 180px;
+  color: var(--ds-foreground, var(--studio-color-text));
+  white-space: nowrap;
+}
+
 .export {
   min-width: 0;
 }

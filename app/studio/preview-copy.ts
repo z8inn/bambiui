@@ -35,6 +35,7 @@ export const previewCopy = {
       badge: { name: "Badge", description: "Small details. Just enough context." },
       switch: { name: "Switch", description: "A simple choice, on or off." },
       checkbox: { name: "Checkbox", description: "Keep the important things in check." },
+      text: { name: "Text", description: "Type styles for headings, paragraphs, labels and captions." },
     },
     modes: { light: "Light", dark: "Dark" },
     tones: { neutral: "Neutral", primary: "Primary", success: "Success", warning: "Warning", danger: "Danger", info: "Info" },

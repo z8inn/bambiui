@@ -44,6 +44,7 @@ Do not invent synonyms such as `buttonSize`, `dimension`, `density`, `kind`, `ap
 | Choice | Checkbox, Switch, Radio | `label`, `hideLabel`, `description`, `error`, `size`, `labelPosition`, `disabled`, `readOnly`, `required`, `name`, `value`, `checked`/`defaultChecked`/`onCheckedChange` (Checkbox also supports `indeterminate`) |
 | Status | Badge, Tag, Alert, Toast | `variant` (`solid \| subtle \| outline`), `tone`, `size` (for inline statuses), `startIcon` or `dot` |
 | Container | Card, Dialog, Popover | `variant` (`outlined \| elevated \| filled` for surfaces), `size` (density), compound parts: `.Header`, `.Title`, `.Description`, `.Content`, `.Footer`, and `.Icon` or `.Media` where relevant |
+| Typography | Text | `variant` (`heading \| paragraph \| label \| caption`), `size`, `tone`, `as` (native `h1`–`h6`, `p`, or `span`), `children`, `className`, native HTML attributes |
 
 Current components:
 
@@ -55,6 +56,19 @@ Current components:
 | Checkbox | — | Same as Switch, plus `indeterminate` |
 | Badge | `solid`, `subtle`, `outline` | `tone`, `size`, `dot`, `startIcon` |
 | Card | `outlined`, `elevated`, `filled` | `size`; parts: `Card.Icon`, `Card.Header`, `Card.Title`, `Card.Description`, `Card.Content`, `Card.Footer` |
+| Text | `heading`, `paragraph` (default), `label`, `caption` | `size` (`md` default), `tone` (`neutral` default), `as`, `children`, `className`, native HTML attributes |
+
+### Text API
+
+`Text` is presentational and does not use Base UI. Its `variant` selects typography tokens independently of the semantic `as` element. By default, `heading` renders `h2`, `paragraph` renders `p`, and `label` and `caption` render `span`. Set `as="h1"` through `as="h6"` to match the document's heading hierarchy; `variant="label"` is a visual style, not an HTML `<label>` associated with a form control.
+
+```tsx
+<Text as="h1" variant="heading" size="lg">Page title</Text>
+<Text tone="info">Supporting text</Text>
+<Text variant="caption" as="span">Updated today</Text>
+```
+
+Typography values come from `--ds-typography-{variant}-{font-size,line-height,font-weight,letter-spacing}`. Font size scales with `--ds-size-scale-sm` and `--ds-size-scale-lg` (`md` is unscaled); line height stays unitless, weight numeric, and letter spacing in px. Neutral text uses `--text-foreground` (inherited from `--ds-foreground` until overridden); other tones use the corresponding `--ds-{tone}-on-subtle` text color for readability on the theme background.
 
 ## 3. Modeling rules
 

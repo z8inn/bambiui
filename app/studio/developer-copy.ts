@@ -31,6 +31,10 @@ const englishNotes = {
   dot: "Decorative leading status dot; provide meaningful text.",
   startIcon: "Leading icon content.",
   surface: "Surface treatment.",
+  textVariant: "Typography style, independent of the semantic element.",
+  textTone: "Neutral uses the theme foreground; semantic tones use their readable on-subtle color.",
+  textAs: "Rendered element. Defaults to h2 for heading, p for paragraph and span for label or caption.",
+  textNative: "Native props for the chosen heading, paragraph or span element.",
 } as const;
 
 export type NoteKey = keyof typeof englishNotes;
@@ -75,6 +79,18 @@ type DeveloperCopy = {
   inherited: string;
   componentOverride: string;
   globalValue: string;
+  colorRamp: string;
+  colorRampDescription: string;
+  role: string;
+  typographyReference: string;
+  typographyDescription: string;
+  variant: string;
+  preview: string;
+  fontSize: string;
+  lineHeight: string;
+  fontWeight: string;
+  letterSpacing: string;
+  sampleText: string;
   derivedColors: string;
   derivedDescription: (mode: PaletteMode) => string;
   derivedThemeVariables: string;
@@ -100,6 +116,7 @@ export const developerCopy = {
       checkbox: "Also accepts Base UI Checkbox.Root props except className and children. The wrapper supplies the indicator and label; use label rather than children. No variant or tone prop is defined.",
       badge: "Also accepts native span props. Badge has no endIcon, loading or disabled behavior.",
       card: "Also accepts native article props. Compose Card.Icon (span), Card.Header (div), Card.Title (strong, not a heading), Card.Description (p), Card.Content (div) and Card.Footer (div). Each part accepts its native element props. No tone prop is defined.",
+      text: "Presentational; not a Base UI control. The variant controls visual typography, not document structure: choose as=\"h1\" through as=\"h6\" for the correct heading level. The label style does not render an HTML label. Size scales font size, while line height remains unitless.",
     },
     developerReference: "Developer reference",
     systemTokens: "System tokens",
@@ -138,6 +155,18 @@ export const developerCopy = {
     inherited: "Inherited",
     componentOverride: "Component override",
     globalValue: "Global value",
+    colorRamp: "Color ramp",
+    colorRampDescription: "Seven live theme roles, each with 11 light-to-dark stops. Swatches and values follow the exported --ds-{role}-{stop} CSS variables, including overrides. Scroll horizontally to see every stop.",
+    role: "Role",
+    typographyReference: "Typography reference",
+    typographyDescription: "Resolved values for the current theme. Text variants use these CSS variables; size sm/lg scales only font size with --ds-size-scale-sm/lg, while md uses the base size. Variant is visual; use as to choose semantic markup. Tone selects --ds-foreground (neutral) or --ds-{tone}-on-subtle.",
+    variant: "Variant",
+    preview: "Preview",
+    fontSize: "Font size",
+    lineHeight: "Line height",
+    fontWeight: "Font weight",
+    letterSpacing: "Letter spacing",
+    sampleText: "The quick brown fox",
     derivedColors: "Derived colors and system constants",
     derivedDescription: (mode) => `Computed from the ${mode === "light" ? "light" : "dark"} theme’s current values; these are not manual component overrides.`,
     derivedThemeVariables: "Derived theme variables",

@@ -10,6 +10,7 @@ import {
   Checkbox,
   Input,
   Switch,
+  Text,
 } from "./components";
 
 import { Icon } from "./icons";
@@ -20,8 +21,13 @@ import { previewCopy, type PreviewCopy } from "./preview-copy";
 
 import {
   componentIds,
+  colorScaleRoles,
+  colorScaleStops,
+  resolveColorScale,
+  typographyVariants,
   toCSSVariables,
   type ComponentId,
+  type ColorScaleRole,
   type DesignSystem,
   type ThemeTokens,
 } from "./tokens";
@@ -236,6 +242,20 @@ function Specimen({ id, expanded, copy }: { id: ComponentId; expanded: boolean; 
           )}
         </div>
       );
+    case "text":
+      return (
+        <div className={styles.textSamples}>
+          <Text variant="heading" as="h3">Design that speaks clearly</Text>
+          <Text variant="paragraph">A paragraph gives an idea room to breathe, with a rhythm that feels natural.</Text>
+          <Text variant="label">Form label</Text>
+          <Text variant="caption">A quiet note for supporting details.</Text>
+          <div className={styles.states}>
+            <Text variant="heading" size="sm">Small</Text>
+            <Text variant="heading" size="lg">Large</Text>
+            <Text variant="label" tone="primary">Primary</Text>
+          </div>
+        </div>
+      );
     case "checkbox":
       return (
         <div className={styles.toggleStates}>
@@ -315,11 +335,12 @@ function ThemePane({ theme, mode, children, copy }: {
   );
 }
 
-export function Preview({ selected, system, mode, active = true }: {
+export function Preview({ selected, system, mode, active = true, onSelectColorRole }: {
   selected: "overview" | ComponentId;
   system: DesignSystem;
   mode: PaletteMode;
   active?: boolean;
+  onSelectColorRole?: (role: ColorScaleRole) => void;
 }) {
   const copy = previewCopy;
   const router = useRouter();
@@ -349,6 +370,7 @@ export function Preview({ selected, system, mode, active = true }: {
     if (view) {
       view.style.backgroundPosition = `${next.x}px ${next.y}px`;
       view.style.backgroundSize = `${16 * next.zoom}px ${16 * next.zoom}px`;
+      view.style.setProperty("--canvas-dot-radius", `${next.zoom}px`);
       view.dataset.cameraX = String(next.x);
       view.dataset.cameraY = String(next.y);
       view.dataset.cameraZoom = String(next.zoom);
@@ -550,6 +572,34 @@ export function Preview({ selected, system, mode, active = true }: {
         }}
       >
         <div ref={canvas} data-canvas className={styles.canvas}>
+          <div className={styles.foundations}>
+            <section data-foundation="colors" aria-labelledby="canvas-colors-title" className={styles.foundation}>
+              <h2 id="canvas-colors-title">Colors</h2>
+              <p>Generated from the current theme. Select a role to edit its 50–1000 tokens.</p>
+              <div className={styles.scaleRegion} role="region" aria-label="Color scale reference" tabIndex={0}>
+                <div className={styles.scaleTable}>
+                  <div className={styles.scaleRow} aria-hidden="true"><span />{colorScaleStops.map((stop) => <span key={stop}>{stop}</span>)}</div>
+                  {colorScaleRoles.map((role) => {
+                    const scale = resolveColorScale(system.themes[mode], mode, role);
+                    return <div className={styles.scaleRow} key={role}>
+                      <Link href="/#color-scales" onClick={() => onSelectColorRole?.(role)}>{role}</Link>
+                      {colorScaleStops.map((stop) => <div key={stop} className={styles.swatch} title={`${role} ${stop}: ${scale[stop]}`} style={{ backgroundColor: scale[stop] }}><span className={styles.srOnly}>{role} {stop}: {scale[stop]}</span></div>)}
+                    </div>;
+                  })}
+                </div>
+              </div>
+            </section>
+            <section data-foundation="text" aria-labelledby="canvas-text-title" className={styles.foundation}>
+              <h2 id="canvas-text-title"><Link href="/text">Text styles</Link></h2>
+              <p>Theme typography tokens power the Text component.</p>
+              <div className={styles.foundationText}>
+                {typographyVariants.map((variant) => <div key={variant}>
+                  <span>{variant}</span>
+                  <Text variant={variant} as={variant === "heading" ? "h3" : "p"}>{variant === "heading" ? "Words worth noticing" : variant === "paragraph" ? "A clear paragraph makes every idea easier to follow." : variant === "label" ? "A helpful label" : "The finer details, thoughtfully placed."}</Text>
+                </div>)}
+              </div>
+            </section>
+          </div>
           <div className={styles.grid}>
             {componentIds.map((id) => <Showcase key={id} id={id} expanded copy={copy} selected={selected === id} onSelect={selectSpecimen} />)}
           </div>

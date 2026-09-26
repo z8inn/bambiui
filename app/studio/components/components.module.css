@@ -384,6 +384,57 @@
   cursor: default;
 }
 
+/* Text ---------------------------------------------------------------------- */
+
+.text {
+  --text-size-scale: 1;
+  --text-font-size: var(--ds-typography-paragraph-font-size);
+  --text-line-height: var(--ds-typography-paragraph-line-height);
+  --text-font-weight: var(--ds-typography-paragraph-font-weight);
+  --text-letter-spacing: var(--ds-typography-paragraph-letter-spacing);
+  margin: 0;
+  color: var(--text-foreground, var(--ds-foreground));
+  font-size: calc(var(--text-font-size) * var(--text-size-scale));
+  line-height: var(--text-line-height);
+  font-weight: var(--text-font-weight);
+  letter-spacing: var(--text-letter-spacing);
+}
+
+.text[data-variant="heading"] {
+  --text-font-size: var(--ds-typography-heading-font-size);
+  --text-line-height: var(--ds-typography-heading-line-height);
+  --text-font-weight: var(--ds-typography-heading-font-weight);
+  --text-letter-spacing: var(--ds-typography-heading-letter-spacing);
+}
+
+.text[data-variant="label"] {
+  --text-font-size: var(--ds-typography-label-font-size);
+  --text-line-height: var(--ds-typography-label-line-height);
+  --text-font-weight: var(--ds-typography-label-font-weight);
+  --text-letter-spacing: var(--ds-typography-label-letter-spacing);
+}
+
+.text[data-variant="caption"] {
+  --text-font-size: var(--ds-typography-caption-font-size);
+  --text-line-height: var(--ds-typography-caption-line-height);
+  --text-font-weight: var(--ds-typography-caption-font-weight);
+  --text-letter-spacing: var(--ds-typography-caption-letter-spacing);
+}
+
+.text[data-size="sm"] {
+  --text-size-scale: var(--ds-size-scale-sm);
+}
+
+.text[data-size="lg"] {
+  --text-size-scale: var(--ds-size-scale-lg);
+}
+
+.text[data-tone="primary"] { color: var(--ds-primary-on-subtle); }
+.text[data-tone="success"] { color: var(--ds-success-on-subtle); }
+.text[data-tone="warning"] { color: var(--ds-warning-on-subtle); }
+.text[data-tone="danger"] { color: var(--ds-danger-on-subtle); }
+.text[data-tone="info"] { color: var(--ds-info-on-subtle); }
+
 /* Badge --------------------------------------------------------------------- */
 
 .badge {

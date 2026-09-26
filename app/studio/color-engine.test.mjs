@@ -3,7 +3,7 @@ import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { defaultSystem, exportCSS, parseDesignSystem, resolveComponent, toCSSVariables } from "./tokens.ts";
-import { contrastRatio, deriveRoleColors, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
+import { colorScaleStops, contrastRatio, deriveRoleColors, generateColorScale, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
 
 const seeds = ["#000000", "#ffffff", "#808080", "#010101", "#fefefe", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#e8673c", "#123456", "#faf0ff"];
 const channels = (hex) => hex.slice(1).match(/../g).map((s) => parseInt(s, 16) / 255);
@@ -79,6 +79,20 @@ for (const seed of seeds) test(`accessible, deterministic palette: ${seed}`, () 
     }
     assert.ok(hueDistance(hue(palette.scales[role][6]), expected) < 2);
   }
+});
+
+test("role scales use their own input color and ascending light-to-dark stops", () => {
+  for (const source of seeds) {
+    const scale = generateColorScale(source);
+    assert.deepEqual(Object.keys(scale).map(Number), colorScaleStops);
+    for (const stop of colorScaleStops) assert.match(scale[stop], /^#[0-9a-f]{6}$/);
+    for (let i = 1; i < colorScaleStops.length; i++) {
+      assert.ok(luminance(scale[colorScaleStops[i - 1]]) > luminance(scale[colorScaleStops[i]]));
+    }
+    assert.deepEqual(generateColorScale(source), scale);
+  }
+  assert.notDeepEqual(generateColorScale("#ff0000"), generateColorScale("#0000ff"));
+  assert.throws(() => generateColorScale("#fff"), /six-digit hex/);
 });
 
 test("strict six-digit hex validation across public helpers", () => {

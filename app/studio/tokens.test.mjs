@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   componentIds, componentTokenKeys, defaultSystem, exportCSS, isComponentKey,
-  parseDesignSystem, resolveComponent, STORAGE_KEY, systemConstants,
-  toCSSVariables, tokenFields,
+  parseDesignSystem, resolveColorScale, resolveComponent, resolveTypography, STORAGE_KEY, systemConstants,
+  toCSSVariables, tokenFields, colorScaleRoles, colorScaleStops, typographyVariants, typographyFields, defaultTypography,
 } from "./tokens.ts";
 import { contrastRatio, deriveRoleColors, generatePalette, mixColors, paletteRoles } from "./color-engine.ts";
 
@@ -42,7 +42,7 @@ function deepFreeze(value) {
 
 test("v3 defaults contain two generated, independent themes with historical geometry", () => {
   assert.equal(STORAGE_KEY, "bambiui.design-system.v1");
-  assert.deepEqual(componentIds, ["button", "input", "card", "badge", "switch", "checkbox"]);
+  assert.deepEqual(componentIds, ["button", "input", "card", "badge", "switch", "checkbox", "text"]);
   assert.deepEqual(componentTokenKeys, ["background", "foreground", "border", "radius",
     "paddingX", "paddingY", "gap", "margin", "fontSize", "borderWidth"]);
   assert.equal(defaultSystem.version, 3);
@@ -52,14 +52,16 @@ test("v3 defaults contain two generated, independent themes with historical geom
   const objects = [];
   for (const mode of modes) {
     const theme = defaultSystem.themes[mode];
-    assert.deepEqual(Object.keys(theme), ["source", "global", "components"]);
+    assert.deepEqual(Object.keys(theme), ["source", "global", "components", "colorScales", "typography"]);
+    assert.deepEqual(theme.colorScales, {});
+    assert.deepEqual(theme.typography, defaultTypography);
     assert.equal(theme.source, "#e8673c");
     assert.deepEqual(theme.global, { ...palette[mode].tokens, ...geometry });
     assert.deepEqual(Object.keys(theme.components), componentIds);
     for (const overrides of Object.values(theme.components)) assert.deepEqual(overrides, {});
     objects.push(theme, theme.global, theme.components, ...Object.values(theme.components));
   }
-  assert.equal(new Set(objects).size, 18);
+  assert.equal(new Set(objects).size, 20);
 });
 
 test("metadata retains exactly 27 globals, 17 colors, 10 geometry and 10 component keys", () => {
@@ -101,7 +103,7 @@ for (const mode of modes) {
   test(`${mode}: CSS maps contain all stored, derived, and constant values`, () => {
     const theme = fresh().themes[mode];
     const variables = toCSSVariables(theme, mode);
-    assert.equal(Object.keys(variables).length, 160);
+    assert.equal(Object.keys(variables).length, 170 + colorScaleRoles.length * colorScaleStops.length + typographyVariants.length * typographyFields.length);
     for (const [key, value] of Object.entries(theme.global)) {
       assert.equal(variables[`--ds-${kebab(key)}`], typeof value === "number" ? `${value}px` : value);
     }
@@ -264,7 +266,7 @@ test("parser validates JSON, workspace name/version and all required object shap
       assert.throws(() => parse(system), /Unknown field/);
     }
     const target = path.reduce((value, part) => value[part], fresh());
-    for (const key of Object.keys(target)) {
+    for (const key of Object.keys(target).filter((key) => !["colorScales", "typography", ...(path.at(-1) === "components" ? ["text"] : [])].includes(key))) {
       const system = fresh();
       delete path.reduce((value, part) => value[part], system)[key];
       assert.throws(() => parse(system), undefined, `${path.join(".")}.${key} required`);
@@ -297,6 +299,8 @@ for (const version of [1, 2]) {
       assert.deepEqual(migrated.themes[mode].global, global);
       assert.deepEqual(migrated.themes[mode].components, legacy.components);
     }
+    assert.deepEqual(migrated.themes.light.colorScales, {});
+    assert.deepEqual(migrated.themes.light.typography, defaultTypography);
     assert.deepEqual(parse(migrated), migrated);
     migrated.themes.light.global.radius = 48;
     migrated.themes.light.components.card.gap = 64;
@@ -311,7 +315,8 @@ for (const version of [1, 2]) {
     for (const id of componentIds) {
       const missing = structuredClone(legacy);
       delete missing.components[id];
-      assert.throws(() => parse(missing), new RegExp(`components.${id}`));
+      if (id === "text") assert.deepEqual(parse(missing).themes.light.components.text, {});
+      else assert.throws(() => parse(missing), new RegExp(`components.${id}`));
     }
     for (const path of [[], ["global"], ["components"], ["components", "button"]]) {
       const invalid = structuredClone(legacy);
@@ -328,6 +333,91 @@ for (const version of [1, 2]) {
     }
   });
 }
+
+test("optional v3 extensions normalize old saves and retain existing data", () => {
+  const system = fresh();
+  for (const mode of modes) {
+    delete system.themes[mode].colorScales;
+    delete system.themes[mode].typography;
+    system.themes[mode].components.button.radius = 23;
+  }
+  const parsed = parse(system);
+  assert.equal(parsed.version, 3);
+  for (const mode of modes) {
+    assert.deepEqual(parsed.themes[mode].colorScales, {});
+    assert.deepEqual(parsed.themes[mode].typography, defaultTypography);
+    assert.equal(parsed.themes[mode].components.button.radius, 23);
+  }
+  parsed.themes.light.typography.heading.fontSize = 42;
+  assert.equal(parsed.themes.dark.typography.heading.fontSize, 32);
+  assert.deepEqual(parse(parsed), parsed);
+});
+
+test("scale stops follow live global colors and keep manual overrides across palette application", () => {
+  assert.deepEqual(colorScaleStops, [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]);
+  assert.deepEqual(colorScaleRoles, ["neutral", "primary", "secondary", "success", "warning", "danger", "info"]);
+  const theme = fresh().themes.light;
+  theme.colorScales.primary = { 50: "#AbCdEf", 900: "#000000" };
+  const original = resolveColorScale(theme, "light", "primary");
+  theme.global.primary = "#123456";
+  const changed = resolveColorScale(theme, "light", "primary");
+  assert.equal(changed[50], "#AbCdEf");
+  assert.equal(changed[900], "#000000");
+  assert.notEqual(changed[500], original[500]);
+  theme.global.foreground = "#ff0000";
+  const neutral = resolveColorScale(theme, "light", "neutral");
+  assert.notDeepEqual(neutral, resolveColorScale(fresh().themes.light, "light", "neutral"));
+  const palette = generatePalette("#2563eb");
+  const applied = { ...theme, source: palette.source, global: { ...theme.global, ...palette.light.tokens } };
+  assert.deepEqual(applied.colorScales, theme.colorScales);
+  assert.equal(resolveColorScale(applied, "light", "primary")[50], "#AbCdEf");
+  assert.equal(parse({ ...fresh(), themes: { light: applied, dark: fresh().themes.dark } }).themes.light.colorScales.primary[50], "#AbCdEf");
+  const css = toCSSVariables(applied, "light");
+  for (const role of colorScaleRoles) for (const stop of colorScaleStops) {
+    assert.equal(css[`--ds-${role}-${stop}`], resolveColorScale(applied, "light", role)[stop]);
+  }
+  assert.match(exportCSS({ themes: { light: applied, dark: fresh().themes.dark } }), /--ds-primary-50: #AbCdEf;/);
+});
+
+test("typography defaults, partial overrides, CSS units, and theme independence", () => {
+  const system = fresh();
+  system.themes.dark.typography = { heading: { fontSize: 44, letterSpacing: -1 }, caption: { lineHeight: 2, fontWeight: 600 } };
+  const parsed = parse(system);
+  assert.deepEqual(resolveTypography(parsed.themes.dark, "heading"), { ...defaultTypography.heading, fontSize: 44, letterSpacing: -1 });
+  assert.deepEqual(resolveTypography(parsed.themes.light, "heading"), defaultTypography.heading);
+  assert.deepEqual(parsed.themes.dark.typography.paragraph, defaultTypography.paragraph);
+  const css = toCSSVariables(parsed.themes.dark, "dark");
+  assert.equal(css["--ds-typography-heading-font-size"], "44px");
+  assert.equal(css["--ds-typography-heading-line-height"], "1.2");
+  assert.equal(css["--ds-typography-heading-font-weight"], "700");
+  assert.equal(css["--ds-typography-heading-letter-spacing"], "-1px");
+  assert.equal(css["--ds-typography-caption-line-height"], "2");
+  assert.match(exportCSS(parsed), /--ds-typography-heading-font-size: 44px;/);
+  assert.deepEqual(typographyFields.map(({ key }) => key), ["fontSize", "lineHeight", "fontWeight", "letterSpacing"]);
+});
+
+test("optional extensions reject unknown keys and invalid values with specific paths", () => {
+  for (const mode of modes) {
+    for (const path of ["colorScales", "typography"]) {
+      const system = fresh();
+      system.themes[mode][path] = null;
+      assert.throws(() => parse(system), new RegExp(`themes.${mode}.${path}`));
+    }
+    for (const [path, value] of [
+      [["colorScales", "unknown"], {}], [["colorScales", "primary", "75"], "#ffffff"],
+      [["colorScales", "primary", "50"], "red"], [["colorScales", "neutral"], []],
+      [["typography", "unknown"], {}], [["typography", "heading", "unknown"], 1],
+      [["typography", "heading", "fontSize"], 0], [["typography", "label", "fontWeight"], "700"],
+      [["typography", "caption", "lineHeight"], null], [["typography", "paragraph"], []],
+    ]) {
+      const system = fresh();
+      let target = system.themes[mode];
+      for (const key of path.slice(0, -1)) target = target[key] ??= {};
+      target[path.at(-1)] = value;
+      assert.throws(() => parse(system), new RegExp(`themes.${mode}.${path.join(".")}`));
+    }
+  }
+});
 
 for (const key of [...colorKeys, "source"]) {
   test(`${key}: six-digit hex validation in both themes and all applicable overrides`, () => {

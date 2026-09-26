@@ -6,4 +6,5 @@ export type { FieldProps } from "./field";
 export { Input, type InputProps } from "./input";
 export { Spinner } from "./spinner";
 export { Switch, type SwitchProps } from "./switch";
+export { Text, type TextProps, type TextVariant } from "./text";
 export type { Size, Tone } from "./types";

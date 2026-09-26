@@ -16,7 +16,7 @@ const mime = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
 const pending = new Map(), failures = [], errors = [];
 let server, chrome, profile, socket, sequence = 0;
 const watchdog = setTimeout(() => { console.error('Smoke test exceeded 180 seconds'); process.exit(1); }, 180000);
-const ids = ['button', 'input', 'card', 'badge', 'switch', 'checkbox'];
+const ids = ['button', 'input', 'card', 'badge', 'switch', 'checkbox', 'text'];
 const href = (view, id = 'overview') => `${view === 'develop' ? '/develop' : ''}${id === 'overview' ? '' : `/${id}`}` || '/';
 const canvas = '[aria-label="Component canvas"]';
 const viewNav = '.studio-header nav.view-switch';
@@ -45,6 +45,7 @@ async function route(view, id = 'overview') {
   assert.equal(await evaluate(`${q('#token-editor')}.hidden`), view === 'develop');
   await wait(`(${q('.editor-scope button[data-state="on"]')}?.textContent.trim() || ${q('.editor-scope button[aria-pressed="true"]')}?.textContent.trim()) === ${JSON.stringify(id === 'overview' ? 'Global tokens' : 'Component')}`);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-specimen]')].map(e=>e.dataset.specimen).sort()`), [...ids].sort());
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-foundation]')].map(e=>e.dataset.foundation).sort()`), ['colors', 'text']);
 }
 async function navigate(view, id = 'overview') {
   const currentView = await evaluate(`location.pathname.startsWith('/develop') ? 'develop' : 'design'`);
@@ -203,6 +204,7 @@ try {
     assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),'#fff8f6');
     assert.equal(await evaluate(`${q('#workspace-content')}.style.getPropertyValue('--preview-background').trim()`),await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-background').trim()`));
     assert.equal(await evaluate(`${q('.canvas-label')}`),null);
+    for(const foundation of ['colors','text']) assert.ok(await evaluate(`${q(`[data-foundation="${foundation}"]`)}.getBoundingClientRect().width > 0 && ${q(`[data-foundation="${foundation}"]`)}.getBoundingClientRect().height > 0`),`visible ${foundation} foundation`);
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).borderTopWidth`),'0px');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Button preview"]')}).backgroundColor`),'rgba(0, 0, 0, 0)');
     assert.equal(await evaluate(`getComputedStyle(${q('.theme-pane:not([hidden]) section[aria-label="Card preview"] article')}).borderTopWidth`),'1px');
@@ -270,7 +272,50 @@ try {
     assert.deepEqual((await stored()).themes.light,before.themes.light);
     await fill('#token-background',before.themes.dark.global.background);
   });
+  await check('scale stop edits update the live swatch, CSS and storage in only one theme',async()=>{
+    await navigate('design');
+    await click(named(themeControl + ' button','Light'));
+    const before=await stored();
+    const field=await evaluate(`${q('#scale-primary-500')}?.id`);
+    assert.ok(field,'primary 500 scale input must have an id');
+    await fill(`#${field}`,'#345678');
+    await wait(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-primary-500').trim()==='#345678'`);
+    assert.equal((await stored()).themes.light.colorScales.primary[500],'#345678');
+    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    assert.ok(await evaluate(`${q('[data-foundation="colors"]')}.textContent.includes('#345678')`),'live foundation must display the edited stop');
+    await click(q('[aria-label="Export tokens"]'));
+    const css=await evaluate(`${q('[aria-label="Exported tokens"]')}.textContent`);
+    assert.ok(css.includes('--ds-primary-500: #345678;'));
+    await click(q('[aria-label="Close export dialog"]'));
+    await reload();
+    assert.equal((await stored()).themes.light.colorScales.primary[500],'#345678');
+    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    assert.equal(await evaluate(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-primary-500').trim()`),'#345678');
+  });
+  await check('heading typography edits update Text, CSS, Docs and storage in only one theme',async()=>{
+    await navigate('design','text');
+    const before=await stored();
+    const field=await evaluate(`${q('#typography-heading-fontSize')}?.id`);
+    assert.ok(field,'heading font size input must have an id');
+    await fill(`#${field}`,'42');
+    await wait(`${q('[data-ds-theme="light"]')}.style.getPropertyValue('--ds-typography-heading-font-size').trim()==='42px'`);
+    assert.equal((await stored()).themes.light.typography.heading.fontSize,42);
+    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    assert.equal(await evaluate(`getComputedStyle(${q('[data-specimen="text"] [data-variant="heading"][data-size="md"]')}).fontSize`),'42px');
+    await click(q('[aria-label="Export tokens"]'));
+    const css=await evaluate(`${q('[aria-label="Exported tokens"]')}.textContent`);
+    assert.ok(css.includes('--ds-typography-heading-font-size: 42px;'));
+    await click(q('[aria-label="Close export dialog"]'));
+    await navigate('develop','text');
+    assert.ok(await evaluate(`${q('.workspace-panel--develop')}.textContent.includes('--ds-typography-heading-font-size') && ${q('.workspace-panel--develop')}.textContent.includes('42px')`));
+    await reload();
+    assert.equal((await stored()).themes.light.typography.heading.fontSize,42);
+    assert.deepEqual((await stored()).themes.dark,before.themes.dark);
+    await navigate('design','text');
+    assert.equal(await evaluate(`getComputedStyle(${q('[data-specimen="text"] [data-variant="heading"][data-size="md"]')}).fontSize`),'42px');
+  });
   await check('contrast warnings follow manual edits and exported CSS/JSON keep both themes',async()=>{
+    await navigate('design','button');
     await click(named('.editor-scope button','Component'));
     const fillColor = await evaluate(`${q('#token-background')}.value`);
     await fill('#token-foreground',fillColor);
@@ -304,8 +349,9 @@ try {
       assert.equal(await evaluate(`${q('[data-specimen="input"] input[type="email"]')}.value`),'retained@example.com');
       assert.ok(await evaluate(`${q('[data-specimen="button"]')}.textContent.includes('successfully (1)')`));
       assert.equal(await evaluate(`document.querySelectorAll('.theme-pane').length`),1);
-            assert.equal(await evaluate(`document.querySelectorAll('[data-specimen="card"] article').length`),3);
-            assert.ok(await evaluate(`!!${q('[data-specimen="input"] input[readonly]')} && !!${q('[data-specimen="button"] [aria-busy="true"]')} && !!${q('[data-specimen="checkbox"] [aria-checked="mixed"]')}`));
+      assert.equal(await evaluate(`document.querySelectorAll('[data-specimen="card"] article').length`),3);
+      assert.ok(await evaluate(`${q('[data-specimen="text"]')}.isConnected`));
+      assert.ok(await evaluate(`!!${q('[data-specimen="input"] input[readonly]')} && !!${q('[data-specimen="button"] [aria-busy="true"]')} && !!${q('[data-specimen="checkbox"] [aria-checked="mixed"]')}`));
       assert.equal(await evaluate(`${q('.theme-pane [data-ds-theme]')}.dataset.dsTheme`),'dark');
     };
     await click(named(themeControl + ' button','Dark'));
@@ -350,12 +396,14 @@ try {
     await click(q('[aria-label="Zoom in"]'));
     assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'110%');
     assert.ok(Math.abs((await evaluate(cameraState)).scale-1.1)<0.02);
+    assert.ok(await evaluate(`(()=>{const v=${q(canvas)},s=getComputedStyle(v);return Math.abs(parseFloat(v.style.getPropertyValue('--canvas-dot-radius'))-1.1)<0.01 && Math.abs(parseFloat(s.backgroundSize)-17.6)<0.01 && s.backgroundImage.includes('1.1px')})()`),'grid dot radius and spacing should follow camera zoom');
     await click(q('[aria-label="Zoom out"]'));
     assert.equal(await evaluate(`${q('[aria-label="Zoom level"]')}.textContent`),'100%');
     await navigate('design','checkbox');
     await wait(`(()=>{const a=${q(canvas)}.getBoundingClientRect(),b=${q('[data-specimen="checkbox"]')}.getBoundingClientRect();return b.bottom>a.top && b.top<a.bottom && b.right>a.left && b.left<a.right})()`);
     await click(named('[aria-label="Canvas zoom"] button','Fit'));
     assert.ok(await evaluate(`parseInt(${q('[aria-label="Zoom level"]')}.textContent)<100`));
+    assert.ok(await evaluate(`(()=>{const v=${q(canvas)},s=getComputedStyle(v),z=Number(v.dataset.cameraZoom);return Math.abs(parseFloat(v.style.getPropertyValue('--canvas-dot-radius'))-z)<0.01 && Math.abs(parseFloat(s.backgroundSize)-16*z)<0.01})()`),'fitting should shrink dots and grid spacing together');
     await click(named('[aria-label="Canvas zoom"] button','Reset zoom'));
     const reset=await stableCamera();
     assert.ok(Math.abs(reset.scale-1)<0.02);
@@ -460,6 +508,7 @@ try {
     for(const view of ['Design','Develop']) {
       await click(named(viewNav + ' a',view));
       await route(view.toLowerCase(),'button');
+
       assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'));
       assert.ok(await evaluate(`${q(viewNav)}.getClientRects().length>0 && ${q(themeControl)}.getClientRects().length>0`));
       assert.equal(await evaluate(`!!${q('.breadcrumbs')} || !!${q('.viewport-controls')}`),false);
@@ -508,7 +557,7 @@ try {
       await send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:false});
     }
   });
-  await check('JSON re-import restores both sources without adding language or editor theme',async()=>{
+  await check('JSON re-import restores both sources; old v3 files without foundations normalize',async()=>{
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
     const backup=await stored();
     await click(named(themeControl + ' button','Light'));
@@ -523,6 +572,24 @@ try {
       assert.deepEqual(Object.keys(backup).sort(),['name','themes','version']);
       await reload();
       assert.deepEqual(await stored(),backup);
+      const oldV3=structuredClone(backup);
+      oldV3.themes.light.global.radius=21;
+      for(const mode of ['light','dark']) {
+        delete oldV3.themes[mode].colorScales;
+        delete oldV3.themes[mode].typography;
+        delete oldV3.themes[mode].components.text;
+      }
+      await evaluate(`(() => {const e=${q('.header-actions input[type="file"]')},d=new DataTransfer();d.items.add(new File([${JSON.stringify(JSON.stringify(oldV3))}],'old-v3.json',{type:'application/json'}));e.files=d.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await wait(`JSON.parse(localStorage.getItem('bambiui.design-system.v1'))?.themes.light.global.radius === 21`);
+      const normalized=await stored();
+      for(const mode of ['light','dark']) {
+        assert.deepEqual(normalized.themes[mode].global,oldV3.themes[mode].global);
+        assert.deepEqual(normalized.themes[mode].components,{...oldV3.themes[mode].components,text:{}});
+        assert.deepEqual(normalized.themes[mode].colorScales,{});
+        assert.equal(normalized.themes[mode].typography.heading.fontSize,32);
+      }
+      await reload();
+      assert.deepEqual(await stored(),normalized);
     } finally {await evaluate('window.confirm=window.__confirm;delete window.__confirm');}
   });
   for(const view of ['design','develop']) for(const id of ['overview',...ids]) {
@@ -536,7 +603,7 @@ try {
       await wait(`performance.timeOrigin!==${origin}`);
       await route(view,id);
       const name=id[0].toUpperCase()+id.slice(1);
-            assert.equal(await evaluate(`${q('h1')}.textContent`),view==='develop'?(id==='overview'?'Token reference':`${name} documentation`):(id==='overview'?'Your design system':name));
+      assert.equal(await evaluate(`${q('h1')}.textContent`),view==='develop'?(id==='overview'?'Token reference':`${name} documentation`):(id==='overview'?'Your design system':name));
     });
   }
   await check('no runtime, browser console or resource errors',async()=>{await delay(200);assert.deepEqual(errors,[]);});

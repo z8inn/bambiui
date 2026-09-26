@@ -31,5 +31,5 @@ export const copy = {
     tokenLabels: {
       background: "Background", foreground: "Foreground", muted: "Muted", mutedForeground: "Muted foreground", border: "Border", primary: "Primary", onPrimary: "On primary", secondary: "Secondary", onSecondary: "On secondary", success: "Success", onSuccess: "On success", warning: "Warning", onWarning: "On warning", danger: "Danger", onDanger: "On danger", info: "Info", onInfo: "On info", radius: "Radius", paddingX: "Horizontal padding", paddingY: "Vertical padding", gap: "Gap", margin: "Margin", fontSize: "Font size", borderWidth: "Border width", controlHeightSm: "Control height sm", controlHeightMd: "Control height md", controlHeightLg: "Control height lg",
     },
-    componentNames: { button: "Button", input: "Input", card: "Card", badge: "Badge", switch: "Switch", checkbox: "Checkbox" },
+    componentNames: { button: "Button", input: "Input", card: "Card", badge: "Badge", switch: "Switch", checkbox: "Checkbox", text: "Text" },
 };

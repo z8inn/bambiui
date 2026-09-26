@@ -1,6 +1,10 @@
 import type { TokenValues } from "./tokens";
 
 export type PaletteMode = "light" | "dark";
+export const colorScaleStops = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000] as const;
+export type ColorScaleStop = (typeof colorScaleStops)[number];
+export const colorScaleRoles = ["neutral", "primary", "secondary", "success", "warning", "danger", "info"] as const;
+export type ColorScaleRole = (typeof colorScaleRoles)[number];
 export const paletteRoles = ["primary", "secondary", "success", "warning", "danger", "info"] as const;
 export type PaletteRole = (typeof paletteRoles)[number];
 export type ColorTokens = Pick<TokenValues,
@@ -188,6 +192,13 @@ function theme(mode: PaletteMode, families: Record<PaletteRole | "neutral", Fami
     danger: roles.danger.solid, onDanger: roles.danger.onSolid,
     info: roles.info.solid, onInfo: roles.info.onSolid,
   } };
+}
+
+/** A scale from an effective role color, independent of the palette seed and theme mode. */
+export function generateColorScale(color: string): Record<ColorScaleStop, string> {
+  const f = family(color);
+  const lightness = [0.985, 0.95, 0.9, 0.84, 0.76, 0.68, 0.6, 0.52, 0.44, 0.36, 0.16];
+  return Object.fromEntries(colorScaleStops.map((stop, i) => [stop, tone(lightness[i], f)])) as Record<ColorScaleStop, string>;
 }
 
 /** Pure and dependency-free. Scales have 12 stops, ordered light to dark in both modes. */

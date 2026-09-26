@@ -1,11 +1,16 @@
 import {
   contrastRatio,
   deriveRoleColors,
+  generateColorScale,
   generatePalette,
   mixColors,
   paletteRoles,
+  colorScaleRoles,
+  colorScaleStops,
 } from "./color-engine.ts";
-import type { PaletteMode, PaletteRole } from "./color-engine.ts";
+import type { ColorScaleRole, ColorScaleStop, PaletteMode, PaletteRole } from "./color-engine.ts";
+export { colorScaleRoles, colorScaleStops } from "./color-engine.ts";
+export type { ColorScaleRole, ColorScaleStop } from "./color-engine.ts";
 import { brandColor } from "./brand.ts";
 
 export const componentIds = [
@@ -15,6 +20,7 @@ export const componentIds = [
   "badge",
   "switch",
   "checkbox",
+  "text",
 ] as const;
 
 export type ComponentId = (typeof componentIds)[number];
@@ -73,11 +79,50 @@ export type ComponentTokens = Pick<
   (typeof componentTokenKeys)[number]
 >;
 
+export type ColorScaleOverrides = Partial<Record<ColorScaleRole, Partial<Record<ColorScaleStop, string>>>>;
+
+export const typographyVariants = ["heading", "paragraph", "label", "caption"] as const;
+export type TypographyVariant = (typeof typographyVariants)[number];
+export type TypographyTokens = {
+  fontSize: number;
+  lineHeight: number;
+  fontWeight: number;
+  letterSpacing: number;
+};
+export const typographyFields = [
+  { key: "fontSize", label: "Font size", unit: "px", min: 8, max: 96 },
+  { key: "lineHeight", label: "Line height", unit: "", min: 0.8, max: 3 },
+  { key: "fontWeight", label: "Font weight", unit: "", min: 100, max: 900 },
+  { key: "letterSpacing", label: "Letter spacing", unit: "px", min: -5, max: 10 },
+] as const satisfies readonly { key: keyof TypographyTokens; label: string; unit: string; min: number; max: number }[];
+
+export const defaultTypography: Record<TypographyVariant, TypographyTokens> = {
+  heading: { fontSize: 32, lineHeight: 1.2, fontWeight: 700, letterSpacing: -0.5 },
+  paragraph: { fontSize: 16, lineHeight: 1.5, fontWeight: 400, letterSpacing: 0 },
+  label: { fontSize: 14, lineHeight: 1.4, fontWeight: 500, letterSpacing: 0 },
+  caption: { fontSize: 12, lineHeight: 1.4, fontWeight: 400, letterSpacing: 0 },
+};
+
 export type ThemeTokens = {
   source: string;
   global: TokenValues;
   components: Record<ComponentId, Partial<ComponentTokens>>;
+  colorScales?: ColorScaleOverrides;
+  typography?: Partial<Record<TypographyVariant, Partial<TypographyTokens>>>;
 };
+
+export function resolveColorScale(
+  theme: ThemeTokens, mode: PaletteMode, role: ColorScaleRole,
+): Record<ColorScaleStop, string> {
+  // Both modes use light-to-dark stops; only the effective theme's role color differs.
+  void mode;
+  const source = role === "neutral" ? theme.global.foreground : theme.global[role];
+  return { ...generateColorScale(source), ...theme.colorScales?.[role] };
+}
+
+export function resolveTypography(theme: ThemeTokens, variant: TypographyVariant): TypographyTokens {
+  return { ...defaultTypography[variant], ...theme.typography?.[variant] };
+}
 
 export type DesignSystem = {
   version: 3;
@@ -127,6 +172,7 @@ const legacyDefaults = {
     badge: {},
     switch: {},
     checkbox: {},
+    text: {},
   },
 };
 
@@ -137,7 +183,9 @@ function defaultTheme(mode: PaletteMode): ThemeTokens {
   return {
     source: defaultSource,
     global: { ...legacyDefaults.global, ...defaultPalette[mode].tokens },
-    components: { button: {}, input: {}, card: {}, badge: {}, switch: {}, checkbox: {} },
+    components: { button: {}, input: {}, card: {}, badge: {}, switch: {}, checkbox: {}, text: {} },
+    colorScales: {},
+    typography: structuredClone(defaultTypography),
   };
 }
 
@@ -313,6 +361,16 @@ export function toCSSVariables(
   for (const { key } of tokenFields) {
     variables[`--ds-${kebabCase(key)}`] = cssValue(theme.global[key]);
   }
+  for (const role of colorScaleRoles) {
+    const scale = resolveColorScale(theme, mode, role);
+    for (const stop of colorScaleStops) variables[`--ds-${role}-${stop}`] = scale[stop];
+  }
+  for (const variant of typographyVariants) {
+    const tokens = resolveTypography(theme, variant);
+    for (const field of typographyFields) {
+      variables[`--ds-typography-${variant}-${kebabCase(field.key)}`] = `${tokens[field.key]}${field.unit}`;
+    }
+  }
   for (const id of componentIds) {
     for (const key of componentTokenKeys) {
       const override = theme.components[id][key];
@@ -439,12 +497,18 @@ export function parseDesignSystem(text: string): DesignSystem {
       const theme = value.themes[mode];
       const path = `themes.${mode}`;
       requireObject(theme, path);
-      requireKnownKeys(theme, ["source", "global", "components"], path);
+      requireKnownKeys(theme, ["source", "global", "components", "colorScales", "typography"], path);
       if (typeof theme.source !== "string" || !/^#[0-9a-fA-F]{6}$/.test(theme.source)) {
         throw new Error(`${path}.source must be a #rrggbb color`);
       }
       validateTokens(theme.global, `${path}.global`, false);
-      validateComponents(theme.components, `${path}.components`);
+      validateComponents(theme.components, `${path}.components`, true);
+      if (theme.colorScales !== undefined) validateColorScales(theme.colorScales, `${path}.colorScales`);
+      if (theme.typography !== undefined) validateTypography(theme.typography, `${path}.typography`);
+      theme.colorScales ??= {};
+      theme.typography = Object.fromEntries(typographyVariants.map((variant) =>
+        [variant, resolveTypography(theme as ThemeTokens, variant)],
+      ));
     }
     return value as DesignSystem;
   }
@@ -461,10 +525,10 @@ export function parseDesignSystem(text: string): DesignSystem {
     value.global = { ...legacyDefaults.global, ...value.global };
   }
   validateTokens(value.global, "global", false);
-  validateComponents(value.components, "components");
+  validateComponents(value.components, "components", true);
   const global = value.global as TokenValues;
   const components = value.components as ThemeTokens["components"];
-  const theme = { source: global.primary, global, components };
+  const theme = { source: global.primary, global, components, colorScales: {}, typography: defaultTypography };
   return {
     version: 3,
     name: value.name,
@@ -472,9 +536,46 @@ export function parseDesignSystem(text: string): DesignSystem {
   };
 }
 
-function validateComponents(value: unknown, path: string): void {
+function validateColorScales(value: unknown, path: string): void {
+  requireObject(value, path);
+  requireKnownKeys(value, colorScaleRoles, path);
+  for (const role of colorScaleRoles) {
+    if (!Object.prototype.hasOwnProperty.call(value, role)) continue;
+    const stops = value[role];
+    const rolePath = `${path}.${role}`;
+    requireObject(stops, rolePath);
+    requireKnownKeys(stops, colorScaleStops.map(String), rolePath);
+    for (const [stop, color] of Object.entries(stops)) {
+      if (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+        throw new Error(`${rolePath}.${stop} must be a #rrggbb color`);
+      }
+    }
+  }
+}
+
+function validateTypography(value: unknown, path: string): void {
+  requireObject(value, path);
+  requireKnownKeys(value, typographyVariants, path);
+  for (const variant of typographyVariants) {
+    if (!Object.prototype.hasOwnProperty.call(value, variant)) continue;
+    const tokens = value[variant];
+    const variantPath = `${path}.${variant}`;
+    requireObject(tokens, variantPath);
+    requireKnownKeys(tokens, typographyFields.map(({ key }) => key), variantPath);
+    for (const field of typographyFields) {
+      if (!Object.prototype.hasOwnProperty.call(tokens, field.key)) continue;
+      const number = tokens[field.key];
+      if (typeof number !== "number" || !Number.isFinite(number) || number < field.min || number > field.max) {
+        throw new Error(`${variantPath}.${field.key} must be a finite number from ${field.min} to ${field.max}`);
+      }
+    }
+  }
+}
+
+function validateComponents(value: unknown, path: string, migrateText = false): void {
   requireObject(value, path);
   requireKnownKeys(value, componentIds, path);
+  if (migrateText && value.text === undefined) value.text = {};
   for (const id of componentIds) {
     validateTokens(value[id], `${path}.${id}`, true);
   }

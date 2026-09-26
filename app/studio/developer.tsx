@@ -5,10 +5,15 @@ import { highlight } from "sugar-high";
 import { Button } from "./controls";
 import { snippets } from "./snippets";
 import {
-
+  colorScaleRoles,
+  colorScaleStops,
+  resolveColorScale,
+  resolveTypography,
+  typographyVariants,
   toCSSVariables,
   tokenFields,
   componentTokenKeys,
+  type ThemeTokens,
   type ComponentId,
   type DesignSystem,
 } from "./tokens";
@@ -101,6 +106,17 @@ const reference: Record<ComponentId, { name: string; props: readonly PropRow[] }
       size, content, className,
     ],
   },
+  text: {
+    name: "Text",
+    props: [
+      ["variant", '"heading" | "paragraph" | "label" | "caption"', '"paragraph"', "textVariant"],
+      size,
+      ["tone", '"neutral" | "primary" | "secondary" | "success" | "warning" | "danger" | "info"', '"neutral"', "textTone"],
+      ["as", '"h1"–"h6" | "p" | "span"', "By variant", "textAs"],
+      content, className,
+      ["native attributes", "HTML attributes for the rendered element", "—", "textNative"],
+    ],
+  },
 };
 
 function ScrollRegion({ label, children }: { label: string; children: ReactNode }) {
@@ -159,6 +175,65 @@ function ReactUsage({ selected }: { selected: ComponentId }) {
   );
 }
 
+function ColorRamp({ theme, mode, variables }: { theme: ThemeTokens; mode: PaletteMode; variables: Record<string, string> }) {
+  const copy = developerCopy;
+  return (
+    <section className={styles.section}>
+      <h3>{copy.colorRamp}</h3>
+      <p>{copy.colorRampDescription}</p>
+      <ScrollRegion label={copy.colorRamp}>
+        <table className={`${styles.table} ${styles.rampTable}`}>
+          <caption>{copy.modeName[mode]} {copy.colorRamp}</caption>
+          <thead><tr><th scope="col">{copy.role}</th>{colorScaleStops.map((stop) => <th scope="col" key={stop}>{stop}</th>)}</tr></thead>
+          <tbody>{colorScaleRoles.map((role) => {
+            const scale = resolveColorScale(theme, mode, role);
+            return (
+              <tr key={role}>
+                <th scope="row">{role}</th>
+                {colorScaleStops.map((stop) => {
+                  const name = `--ds-${role}-${stop}`;
+                  return <td key={stop}>
+                    <span className={styles.swatch} style={{ backgroundColor: `var(${name}, ${scale[stop]})` }} aria-hidden="true" />
+                    <code>{name}</code><code>{variables[name]}</code>
+                  </td>;
+                })}
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </ScrollRegion>
+    </section>
+  );
+}
+
+function TypographyReference({ theme, variables }: { theme: ThemeTokens; variables: Record<string, string> }) {
+  const copy = developerCopy;
+  return (
+    <section className={styles.section}>
+      <h3>{copy.typographyReference}</h3>
+      <p>{copy.typographyDescription}</p>
+      <ScrollRegion label={copy.typographyReference}>
+        <table className={styles.table}>
+          <caption>{copy.typographyReference}</caption>
+          <thead><tr><th scope="col">{copy.variant}</th><th scope="col">{copy.preview}</th><th scope="col">{copy.fontSize}</th><th scope="col">{copy.lineHeight}</th><th scope="col">{copy.fontWeight}</th><th scope="col">{copy.letterSpacing}</th></tr></thead>
+          <tbody>{typographyVariants.map((variant) => {
+            const values = resolveTypography(theme, variant);
+            const prefix = `--ds-typography-${variant}-`;
+            return <tr key={variant}>
+              <th scope="row">{variant}</th>
+              <td><span className={styles.typeSample} style={{ fontSize: values.fontSize, lineHeight: values.lineHeight, fontWeight: values.fontWeight, letterSpacing: values.letterSpacing }}>{copy.sampleText}</span></td>
+              {(["font-size", "line-height", "font-weight", "letter-spacing"] as const).map((field) => {
+                const name = `${prefix}${field}`;
+                return <td key={field}><code>{name}</code><br /><code>{variables[name]}</code></td>;
+              })}
+            </tr>;
+          })}</tbody>
+        </table>
+      </ScrollRegion>
+    </section>
+  );
+}
+
 export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperViewProps) {
   const copy = developerCopy;
   const component = selected === "overview" ? null : reference[selected];
@@ -203,7 +278,10 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
         </>
       )}
 
-      <details className={styles.reference} open={selected === "overview"}>
+      {selected === "overview" && <ColorRamp theme={theme} mode={mode} variables={variables} />}
+      {(selected === "overview" || selected === "text") && <TypographyReference theme={theme} variables={variables} />}
+
+      {selected !== "text" && <details className={styles.reference} open={selected === "overview"}>
         <summary>{component ? copy.tokenInheritance : copy.globalTokenReference}</summary>
         <p>
           {component
@@ -229,9 +307,9 @@ export function DeveloperView({ selected, system, mode, cssOutput }: DeveloperVi
             </tbody>
           </table>
         </ScrollRegion>
-      </details>
+      </details>}
 
-      {derived.length > 0 && (
+      {selected !== "text" && derived.length > 0 && (
         <details className={styles.reference}>
           <summary>{copy.derivedColors}</summary>
           <p>{copy.derivedDescription(mode)}</p>

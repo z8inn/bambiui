@@ -171,6 +171,21 @@ export function Example() {
   );
 }
 `,
+  text: `${imports("Text", false)}
+export function Example() {
+  return (
+    <>
+      {/* Variant sets appearance; as sets document semantics. */}
+      <Text as="h1" variant="heading" size="lg">Page title</Text>
+      <Text variant="heading" size="sm" as="h2">Section title</Text>
+      <Text>Paragraph text uses the default variant and size.</Text>
+      <Text variant="paragraph" tone="info">An informative note.</Text>
+      <Text variant="label" as="span">Visual label, not a form label</Text>
+      <Text variant="caption" as="span" tone="secondary">Updated today</Text>
+    </>
+  );
+}
+`,
   checkbox: `${imports("Checkbox", false)}
 export function Example() {
   return (

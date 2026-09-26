@@ -71,12 +71,13 @@ test("equal component overrides still fail without changing globals", () => {
     const theme = fresh(mode);
     for (const id of componentIds) theme.components[id] = { foreground: "#123456", background: "#123456" };
     const checks = byId(theme, mode);
-    for (const id of componentIds) {
+    for (const id of componentIds.filter((id) => id !== "text")) {
       const check = checks.get(`${id}.foreground`);
       assert.equal(check.ratio, 1, id);
       assert.equal(check.passes, false, id);
       assert.equal(check.minimum, ["switch", "checkbox"].includes(id) ? 3 : 4.5);
     }
+    pair(checks.get("text.foreground"), "#123456", theme.global.background);
     assert.deepEqual(auditSystemColors(theme, mode).filter((c) => !c.component),
       auditSystemColors(fresh(mode), mode).filter((c) => !c.component));
   }
